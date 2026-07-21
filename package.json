@@ -1,0 +1,22 @@
+{
+  "name": "pixwriter",
+  "version": "1.0.0",
+  "description": "PixBlog autonomous blogging agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cycle": "set -a && . /home/pixwriter/.pixblog-agent.env && set +a && /home/pixwriter/.devrelay/node/bin/npx tsx src/index.ts",
+    "status": "set -a && . /home/pixwriter/.pixblog-agent.env && set +a && /home/pixwriter/.devrelay/node/bin/npx tsx src/status.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "openai": "^6.48.0",
+    "rss-parser": "^3.13.0",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

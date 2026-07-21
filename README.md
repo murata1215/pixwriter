@@ -190,3 +190,19 @@ cat /home/pixwriter/state/strategy.md
   state/          # 状態ファイル (mission.md, strategy.md, ideas.json, etc.)
   logs/           # サイクルログ (30日保持)
 ```
+
+## ソース管理
+
+コードは GitHub リポジトリ [murata1215/pixwriter](https://github.com/murata1215/pixwriter) で管理する。
+
+- バージョン管理対象は `agent/` 配下のコードのみ(`src/`, `systemd/`, `package.json`, `tsconfig.json`, `README.md`)
+- `state/` と `logs/` は運用データのため管理対象外
+- `.gitignore` で `node_modules/`, `.devrelay/`, `.devrelay-output/`, `*.log`, `*.env` を除外
+- 認証は SSH デプロイキー(write権限付き)。追加操作なしで push 可能
+
+```bash
+cd /home/pixwriter/agent
+git add <変更ファイルを明示指定>   # .env混入防止のため git add -A は使わない
+git commit -m "..."
+git push
+```

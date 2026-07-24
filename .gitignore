@@ -1,6 +1,7 @@
 node_modules/
 .devrelay/
 .devrelay-output/
+.devrelay-files/
 *.log
 .env
 *.env

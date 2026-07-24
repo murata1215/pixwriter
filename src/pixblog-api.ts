@@ -35,6 +35,8 @@ interface CreatePostParams {
   tags: string[];
   status: "draft" | "published";
   memo?: string;
+  excerpt?: string;
+  featured_media_url?: string;
 }
 
 export interface PixBlogPostDetail extends PixBlogPost {
@@ -48,6 +50,8 @@ interface UpdatePostParams {
   tags?: string[];
   status?: "draft" | "published";
   memo?: string;
+  excerpt?: string;
+  featured_media_url?: string;
 }
 
 async function apiRequest<T>(

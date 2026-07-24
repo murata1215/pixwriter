@@ -139,13 +139,14 @@ ${readme}
     ...(repo.topics.length > 0 ? repo.topics.slice(0, 3) : []),
   ].slice(0, 5);
 
-  let finalBody = await processBodyDiagrams(body);
+  const finalBody = await processBodyDiagrams(body);
 
   const topic = `${repo.name} - ${repo.language || "programming"} project`;
+  // Set eyecatch as featured image (auto-rendered on page/OGP/thumbnail);
+  // do not prepend into the body to avoid duplicate top image.
   const eyecatchUrl = await generateAndUploadEyecatch(title, topic);
   if (eyecatchUrl) {
-    finalBody = `![${title}](${eyecatchUrl})\n\n${finalBody}`;
-    log("INFO", `Eyecatch added to showcase article: ${eyecatchUrl}`);
+    log("INFO", `Eyecatch set as featured image (showcase): ${eyecatchUrl}`);
   }
 
   const memo = `writer: ${writer.id} / model: ${writer.model} / style: ${writer.style} / source: showcase / repo: ${repo.name}`;
@@ -157,6 +158,7 @@ ${readme}
     tags,
     status: "draft",
     memo,
+    ...(eyecatchUrl ? { featured_media_url: eyecatchUrl } : {}),
   });
 
   log("INFO", `Showcase draft posted: id=${post.id} repo=${repo.name} title="${title}" writer=${writer.id}`);

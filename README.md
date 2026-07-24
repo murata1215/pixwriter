@@ -159,10 +159,20 @@ cat /home/pixwriter/state/strategy.md
 
 ### 画像生成
 
-- **アイキャッチ**: OpenAI gpt-image-1 (low quality, ~$0.011/枚) で自動生成。本文先頭に挿入
+- **アイキャッチ**: OpenAI gpt-image-1 (low quality, ~$0.011/枚) で自動生成。
+  記事の `featured_media_url`(アイキャッチ)に設定する。PixBlogが記事ページ上部・OGP・一覧サムネイルに自動表示するため、本文への画像埋め込みはしない(二重表示防止)
 - **図解**: Claude が本文中にSVGを出力 → sharp でPNG変換 → アップロード
 - 画像生成/変換が失敗しても記事投稿は止めない
 - OPENAI_API_KEY未設定の場合、画像生成はスキップ
+
+### SEO(検索スニペット / OGP / インデックス)
+
+- **excerpt(meta description)**: review/rewrite が検索スニペット用の説明文(100-160字、定型句禁止)を生成し `excerpt` に設定。未設定時はPixBlogが本文先頭160字を自動生成
+- **OGP画像 / サムネイル**: `featured_media_url` に設定したアイキャッチが `og:image`・一覧サムネイルに使われる
+- **sitemap / canonical / JSON-LD / noindex無し**: PixBlog側で出力済み。Google Search Console 登録済み
+- **IndexNow**: PixBlog側で公開/更新時に api.indexnow.org へ即時通知(Bing/Yandex等)
+- 移行スクリプト `scripts/backfill-seo.ts`: 公開済み記事に excerpt を後付け生成
+  (`npx tsx scripts/backfill-seo.ts` でdry-run、`--apply` で適用)
 
 ### マルチライター
 

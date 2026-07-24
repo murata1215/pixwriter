@@ -69,11 +69,13 @@ ${htmlContent}
 2. 本文の内容・構成・読みやすさを改善
 3. タグを見直し
 4. 改善した本文全文をMarkdown形式で出力
+5. 検索スニペット用の excerpt（meta description、100〜160字、記事の具体的な価値を書く。定型句・「〜について解説します」型は禁止）を出力
 
 以下のJSON形式で返してください（他の文章は不要）:
 {
   "title": "改善後のタイトル",
   "tags": ["タグ1", "タグ2", "タグ3"],
+  "excerpt": "検索スニペット向けの説明文（100〜160字）",
   "body": "改善後のMarkdown本文全文"
 }`;
 
@@ -83,7 +85,7 @@ ${htmlContent}
     8192
   );
 
-  let improvements: { title: string; tags: string[]; body?: string } | null = null;
+  let improvements: { title: string; tags: string[]; excerpt?: string; body?: string } | null = null;
   try {
     const jsonMatch = result.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -103,9 +105,12 @@ ${htmlContent}
       patchData.body = improvements.body;
       patchData.content_format = "markdown";
     }
+    if (improvements.excerpt && improvements.excerpt.trim().length > 0) {
+      patchData.excerpt = improvements.excerpt.trim();
+    }
 
     try {
-      await updatePost(postId, patchData as { title: string; tags: string[]; body?: string; content_format?: "markdown" });
+      await updatePost(postId, patchData as { title: string; tags: string[]; body?: string; content_format?: "markdown"; excerpt?: string });
       article.title = improvements.title;
       saveArticles(state.articles);
       log("INFO", `Rewritten post_id=${postId}: ${improvements.title}`);

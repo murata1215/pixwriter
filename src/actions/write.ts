@@ -161,13 +161,14 @@ ${idea.sourceUrl ? `参考URL: ${idea.sourceUrl}` : ""}
   }
 
   // Process diagrams (SVG → PNG → upload → replace in body)
-  let finalBody = await processBodyDiagrams(body);
+  const finalBody = await processBodyDiagrams(body);
 
-  // Generate and prepend eyecatch image
+  // Generate eyecatch image and set it as the post's featured image (OGP /
+  // list thumbnail / article header are auto-rendered by PixBlog). We no longer
+  // prepend the image into the body to avoid a duplicate image at the top.
   const eyecatchUrl = await generateAndUploadEyecatch(title, idea.topic);
   if (eyecatchUrl) {
-    finalBody = `![${title}](${eyecatchUrl})\n\n${finalBody}`;
-    log("INFO", `Eyecatch added to article: ${eyecatchUrl}`);
+    log("INFO", `Eyecatch set as featured image: ${eyecatchUrl}`);
   }
 
   // Build memo for PixBlog (non-public metadata)
@@ -181,6 +182,7 @@ ${idea.sourceUrl ? `参考URL: ${idea.sourceUrl}` : ""}
     tags,
     status: "draft",
     memo,
+    ...(eyecatchUrl ? { featured_media_url: eyecatchUrl } : {}),
   });
 
   log("INFO", `Draft posted: id=${post.id} title="${title}" writer=${writer.id}`);

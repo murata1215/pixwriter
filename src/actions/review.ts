@@ -92,6 +92,8 @@ ${htmlContent}
 3. 基準を満たすよう本文を改善する。定型句（「読み終わる頃には」「ぜひ最後まで」等）は削る。
    一次情報が足りなければ、元記事にある具体を掘り起こして前に出す（事実の捏造は禁止）。
 4. SEOを意識したタイトルとタグに改善する。
+5. 検索スニペット用の excerpt（meta description）を作る: 100〜160字、記事の具体的な価値・結論を書く。
+   定型句や「〜について解説します」型は禁止。検索結果でクリックしたくなる説明にする。
 
 以下のJSON形式で返してください（他の文章は不要）:
 {
@@ -99,6 +101,7 @@ ${htmlContent}
   "deficiencies": ["不足点1", "不足点2"],
   "title": "改善後のタイトル",
   "tags": ["タグ1", "タグ2", "タグ3"],
+  "excerpt": "検索スニペット向けの説明文（100〜160字）",
   "body": "改善後のMarkdown本文全文"
 }`;
 
@@ -114,6 +117,7 @@ ${htmlContent}
     deficiencies?: string[];
     title: string;
     tags: string[];
+    excerpt?: string;
     body?: string;
   }
   let improvements: ReviewResult | null = null;
@@ -194,6 +198,10 @@ ${cliches.length > 0 ? `\n# 削除すべき定型句\n${cliches.map((c) => `- ${
       patchData.body = improvements.body;
       patchData.content_format = "markdown";
     }
+    // SEO: set meta description (excerpt) when the reviewer produced one
+    if (improvements.excerpt && improvements.excerpt.trim().length > 0) {
+      patchData.excerpt = improvements.excerpt.trim();
+    }
     // Record quality score in the non-public memo
     if (qualityScore !== undefined && improvements.scores) {
       const s = improvements.scores;
@@ -201,7 +209,7 @@ ${cliches.length > 0 ? `\n# 削除すべき定型句\n${cliches.map((c) => `- ${
     }
 
     try {
-      await updatePost(postId, patchData as { title: string; tags: string[]; body?: string; content_format?: "markdown"; memo?: string });
+      await updatePost(postId, patchData as { title: string; tags: string[]; body?: string; content_format?: "markdown"; memo?: string; excerpt?: string });
       article.title = improvements.title;
       if (qualityScore !== undefined) article.qualityScore = qualityScore;
     } catch (err) {
@@ -231,7 +239,9 @@ ${cliches.length > 0 ? `\n# 削除すべき定型句\n${cliches.map((c) => `- ${
     }
   }
 
-  // Generate eyecatch if missing
+  // Generate eyecatch if missing — set it as the featured image (auto-rendered
+  // on page/OGP/thumbnail). Previously this PATCHed `body` with only the image
+  // markdown, which OVERWROTE the whole article body with a single image.
   if (!postDetail.featured_image_url && !postDetail.thumbnail_url) {
     log("INFO", `Article post_id=${postId} has no eyecatch. Generating one.`);
     const eyecatchUrl = await generateAndUploadEyecatch(
@@ -240,12 +250,10 @@ ${cliches.length > 0 ? `\n# 削除すべき定型句\n${cliches.map((c) => `- ${
     );
     if (eyecatchUrl) {
       try {
-        await updatePost(postId, {
-          body: `![${article.title}](${eyecatchUrl})\n\n`,
-        });
-        log("INFO", `Eyecatch added to article post_id=${postId}: ${eyecatchUrl}`);
+        await updatePost(postId, { featured_media_url: eyecatchUrl });
+        log("INFO", `Eyecatch set as featured image for post_id=${postId}: ${eyecatchUrl}`);
       } catch (err) {
-        log("WARN", `Failed to add eyecatch to article: ${err}`);
+        log("WARN", `Failed to set featured image: ${err}`);
       }
     }
   }

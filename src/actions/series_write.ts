@@ -158,12 +158,10 @@ ${conversationText || "(会話データなし。テーマに基づいて一般�
     finalBody = prevLink + "\n\n---\n\n" + finalBody;
   }
 
-  // 6. Eyecatch
+  // 6. Eyecatch — set as featured image (auto-rendered on page/OGP/thumbnail);
+  // do not prepend into the body to avoid duplicate top image.
   const title = `${series.title} 第${episode.n}回――${episode.theme}`;
   const eyecatchUrl = await generateAndUploadEyecatch(title, `${series.projectName} development`);
-  if (eyecatchUrl) {
-    finalBody = `![${title}](${eyecatchUrl})\n\n${finalBody}`;
-  }
 
   // 7. Post to PixBlog
   const tags = ["連載", series.projectName, "個人開発"];
@@ -176,6 +174,7 @@ ${conversationText || "(会話データなし。テーマに基づいて一般�
     tags,
     status: "draft",
     memo,
+    ...(eyecatchUrl ? { featured_media_url: eyecatchUrl } : {}),
   });
 
   log("INFO", `Series episode posted: id=${post.id} series="${series.title}" #${episode.n}`);

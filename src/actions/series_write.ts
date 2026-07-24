@@ -1,5 +1,5 @@
 import type { AppState } from "../state.js";
-import { saveArticles, jstToday } from "../state.js";
+import { saveArticles, jstToday, loadQuality } from "../state.js";
 import { loadSeries, saveSeries, getNextPlannedEpisode, getPreviousEpisodePostId } from "../series.js";
 import { createPost } from "../pixblog-api.js";
 import { generateAndUploadEyecatch, processBodyDiagrams } from "../image-gen.js";
@@ -127,7 +127,12 @@ ${conversationText || "(会話データなし。テーマに基づいて一般�
 - 本文中に図解が効果的な箇所があればSVGを <svg>...</svg> で埋め込む（最大1点）
 - 最後にまとめと次回予告を入れる`;
 
-  const body = await generateWithWriter(writer, "開発プロジェクトの連載記事を書いてください。", prompt);
+  const quality = loadQuality();
+  const body = await generateWithWriter(
+    writer,
+    `開発プロジェクトの連載記事を書いてください。\n\n以下は「読ませる記事」の品質基準です。必ず守ってください（会話履歴にある実際のコード・エラー・数値・具体的な出来事を一次情報として最低3つ盛り込む）。\n\n${quality}`,
+    prompt
+  );
 
   // 5. Process diagrams
   let finalBody = await processBodyDiagrams(body);

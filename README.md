@@ -180,6 +180,21 @@ cat /home/pixwriter/state/strategy.md
 - PixBlogのmemoフィールドにライター情報を非公開記録
 - analyzeでライター別PVを分析し戦略調整
 
+### 品質ゲート(「読ませる記事」)
+
+- `state/quality.md` に「読ませる記事」の基準を定義(人間が直接編集可)。
+  一次情報(実コード/エラー原文/実プロダクト名/実数値)を最低3つ、一般論フック・定型句・水増しを排除。
+- write/showcase/series_write は quality.md を執筆プロンプトに注入して書く
+- review は4軸(hook/firsthand/originality/concise、各1-5)で採点し、
+  合計12点未満 or NG定型句検出で本文を1回自動で書き直す。スコアはmemoとarticles.jsonに記録
+
+### PV評価基準
+
+- 成功基準は **100PV以上**(`PV_SUCCESS_THRESHOLD`)。
+- 100PV未満のPV差はノイズ(オーナー本人の確認アクセスが大半)として扱い、
+  テーマの当たり外れ・撤退・注力の判断根拠にしない。
+- 全記事が100PV未満の間、analyzeはPVでの戦略確定を凍結し、記事品質と流入経路を改善軸にする
+
 ## ディレクトリ構成
 
 ```

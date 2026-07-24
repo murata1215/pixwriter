@@ -1,5 +1,5 @@
 import type { AppState } from "../state.js";
-import { saveArticles, jstToday } from "../state.js";
+import { saveArticles, jstToday, loadQuality } from "../state.js";
 import { createPost } from "../pixblog-api.js";
 import { generateAndUploadEyecatch, processBodyDiagrams } from "../image-gen.js";
 import { selectWriter, generateWithWriter } from "../writers.js";
@@ -106,10 +106,11 @@ ${readme}
 - 最後にまとめセクションを入れる
 - 本文中に図解が1つあると効果的な箇所があれば、SVGコードを <svg>...</svg> タグで埋め込む（最大1点）`;
 
-  // Generate body with selected writer
+  // Generate body with selected writer (quality standard injected)
+  const quality = loadQuality();
   const body = await generateWithWriter(
     writer,
-    "自作プロダクトを一人称で紹介する記事を書いてください。",
+    `自作プロダクトを一人称で紹介する記事を書いてください。\n\n以下は「読ませる記事」の品質基準です。必ず守ってください。\n\n${quality}`,
     prompt
   );
 

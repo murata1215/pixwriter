@@ -1,5 +1,5 @@
 import type { AppState } from "../state.js";
-import { saveIdeas, saveArticles, jstToday } from "../state.js";
+import { saveIdeas, saveArticles, jstToday, loadQuality } from "../state.js";
 import { createPost } from "../pixblog-api.js";
 import { generateAndUploadEyecatch, processBodyDiagrams } from "../image-gen.js";
 import { selectWriter, generateWithWriter } from "../writers.js";
@@ -125,8 +125,17 @@ ${idea.sourceUrl ? `参考URL: ${idea.sourceUrl}` : ""}
 - 本文中に図解（比較図・フロー図・構成図など）が1つあると効果的な箇所があれば、その内容を正確に表すSVGコードを <svg>...</svg> タグで本文中の該当位置に埋め込む（最大1点、装飾目的では作らない、不要なら出力しない）`;
   }
 
-  // Generate with selected writer
-  const body = await generateWithWriter(writer, "", prompt + writingRules);
+  // Inject the "readable article" quality standard as the writer's system guidance
+  const quality = loadQuality();
+  const qualitySystem = `以下は「読ませる記事」の品質基準です。必ず守って執筆してください。\n\n${quality}`;
+
+  // For trouble/devrelay ideas, force the raw first-hand material into the body
+  if (isTrouble || idea.source === "devrelay") {
+    writingRules += `\n\n【一次情報の必須化】メモに含まれるエラーメッセージ原文・コード・具体的な数値・プロダクト名は、要約せず本文にそのまま盛り込んでください（内部情報のみ伏せ字）。一次情報を最低3つ含めること。`;
+  }
+
+  // Generate with selected writer (quality standard injected via system prompt)
+  const body = await generateWithWriter(writer, qualitySystem, prompt + writingRules);
 
   // Extract title
   let title = idea.title;

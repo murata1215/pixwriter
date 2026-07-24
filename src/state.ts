@@ -13,6 +13,7 @@ import {
   SERIES_FILE,
   PUBLISH_SLOTS_UTC,
   JST_OFFSET_HOURS,
+  QUALITY_FILE,
 } from "./config.js";
 import type { PixBlogPost } from "./pixblog-api.js";
 
@@ -58,6 +59,7 @@ export interface Article {
   writer?: string;       // Writer profile id
   writerModel?: string;  // Model used for writing
   writerStyle?: string;  // Writer style description
+  qualityScore?: number; // Review quality gate score (4..20)
   publishedAt: string | null;
   pvHistory: { date: string; count: number }[];
 }
@@ -91,6 +93,13 @@ const INITIAL_STRATEGY = `# PixWriter Strategy
 PVデータが溜まったら分析して方針を修正していく。
 `;
 
+const INITIAL_QUALITY = `# 「読ませる記事」品質基準
+
+記事1本に一次情報(実コード/エラー原文/実プロダクト名/実数値)を最低3つ含める。
+一般論だけのフック・段落を書かない。定型句(「読み終わる頃には」「ぜひ最後まで」等)を乱用しない。
+成功の目安は100PV以上。1桁PVはノイズ。量より読ませる質を優先する。
+`;
+
 function ensureFile(path: string, defaultContent: string): void {
   if (!fs.existsSync(path)) {
     fs.writeFileSync(path, defaultContent);
@@ -103,6 +112,7 @@ export function initializeState(): void {
   }
   ensureFile(MISSION_FILE, INITIAL_MISSION);
   ensureFile(STRATEGY_FILE, INITIAL_STRATEGY);
+  ensureFile(QUALITY_FILE, INITIAL_QUALITY);
   ensureFile(IDEAS_FILE, "[]\n");
   ensureFile(ARTICLES_FILE, "[]\n");
   ensureFile(JOURNAL_FILE, "");
@@ -161,6 +171,15 @@ export function saveArticles(articles: Article[]): void {
 
 export function saveStrategy(strategy: string): void {
   atomicWrite(STRATEGY_FILE, strategy);
+}
+
+/** Loads the "readable article" quality standard (state/quality.md). */
+export function loadQuality(): string {
+  try {
+    return fs.readFileSync(QUALITY_FILE, "utf-8");
+  } catch {
+    return INITIAL_QUALITY;
+  }
 }
 
 export function setConsecutiveErrors(count: number): void {

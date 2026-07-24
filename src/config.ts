@@ -15,6 +15,7 @@ export const BUDGET_FILE = path.join(STATE_DIR, "budget.json");
 export const HALT_FILE = path.join(STATE_DIR, "HALT");
 export const LOCK_FILE = path.join(STATE_DIR, ".lock");
 export const SERIES_FILE = path.join(STATE_DIR, "series.json");
+export const QUALITY_FILE = path.join(STATE_DIR, "quality.md");
 
 // PixBlog API
 export const PIXBLOG_BASE_URL = "https://pixblog.net";
@@ -42,6 +43,14 @@ export const LOG_RETENTION_DAYS = 30;
 // Guardrails
 export const MAX_CONSECUTIVE_ERRORS = 3;
 export const MAX_PUBLISHES_PER_DAY = 3;
+
+// PV evaluation. Below this, view counts are treated as noise (mostly the
+// owner's own confirmation access) and MUST NOT drive theme/strategy decisions.
+export const PV_SUCCESS_THRESHOLD = 100;
+
+// Quality gate (review): total score below this triggers one rewrite pass.
+// Score is 4 axes x 1-5 = 4..20.
+export const QUALITY_SCORE_MIN = 12;
 
 // Publish time slots (UTC hours). JST = UTC + 9.
 // Slot 0: JST 08:00-10:00 = UTC 23:00-01:00

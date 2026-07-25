@@ -108,7 +108,7 @@ ${htmlContent}
   const result = await generateContent(
     "あなたは辛口のブログ編集者です。読者が最後まで読む記事かを厳しく採点し、基準を満たすよう本文を書き直してください。改善したMarkdown全文とJSON採点を返してください。",
     prompt,
-    8192
+    6144
   );
 
   // Parse improvements + scores
@@ -173,7 +173,7 @@ ${cliches.length > 0 ? `\n# 削除すべき定型句\n${cliches.map((c) => `- ${
         const rewritten = await generateContent(
           "あなたは辛口のブログ編集者です。指摘された不足点を必ず解消し、読ませる記事に書き直してください。",
           rewritePrompt,
-          8192
+          6144
         );
         // Strip accidental code fences
         const cleaned = rewritten.replace(/^```(?:markdown)?\n?/, "").replace(/\n?```\s*$/, "").trim();

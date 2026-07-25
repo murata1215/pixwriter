@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ANTHROPIC_API_KEY } from "./config.js";
+import { ANTHROPIC_API_KEY, anthropicPricing } from "./config.js";
 import { recordUsage } from "./budget.js";
 import { recordOpenAITextUsage } from "./budget.js";
 import { generateContentOpenAI } from "./openai-text.js";
@@ -150,7 +150,8 @@ export async function generateWithWriter(
   });
 
   if (response.usage) {
-    recordUsage(response.usage.input_tokens, response.usage.output_tokens);
+    const p = anthropicPricing(writer.model);
+    recordUsage(response.usage.input_tokens, response.usage.output_tokens, p.input, p.output);
     log("INFO", `Anthropic usage: in=${response.usage.input_tokens} out=${response.usage.output_tokens}`);
   }
 

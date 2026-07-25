@@ -44,13 +44,23 @@ export function saveBudget(budget: Budget): void {
   fs.writeFileSync(BUDGET_FILE, JSON.stringify(budget, null, 2) + "\n");
 }
 
-export function recordUsage(inputTokens: number, outputTokens: number): Budget {
+/**
+ * Records Anthropic token usage. Cost is accumulated per-call so that calls on
+ * different models (e.g. sonnet for generation, haiku for decisions) are each
+ * priced correctly. Pricing defaults to sonnet for backward compatibility.
+ */
+export function recordUsage(
+  inputTokens: number,
+  outputTokens: number,
+  inputPricePerM: number = INPUT_PRICE_PER_M,
+  outputPricePerM: number = OUTPUT_PRICE_PER_M
+): Budget {
   const budget = loadBudget();
   budget.inputTokens += inputTokens;
   budget.outputTokens += outputTokens;
-  budget.estimatedCostUsd =
-    (budget.inputTokens / 1_000_000) * INPUT_PRICE_PER_M +
-    (budget.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_M;
+  budget.estimatedCostUsd +=
+    (inputTokens / 1_000_000) * inputPricePerM +
+    (outputTokens / 1_000_000) * outputPricePerM;
   saveBudget(budget);
   return budget;
 }

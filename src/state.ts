@@ -33,6 +33,13 @@ export function toJstDate(utcTimestamp: string): string {
   return jst.toISOString().slice(0, 10);
 }
 
+/** Returns the current hour (0-23) in JST. */
+export function jstHour(): number {
+  const now = new Date();
+  const jst = new Date(now.getTime() + JST_OFFSET_HOURS * 60 * 60 * 1000);
+  return jst.getUTCHours();
+}
+
 // ---- Types ----
 
 export interface Idea {
@@ -375,6 +382,14 @@ export function allSlotsConsumed(articles: Article[]): boolean {
 // ---- Free idle check ----
 
 export function shouldFreeIdle(state: AppState): string | null {
+  // Condition 0 (cost control): deep night in JST has no publish slots
+  // (slots are JST 8-10 / 12-14 / 19-21). Skip Claude calls entirely between
+  // 23:00 and 07:00 JST. Waking at 07:00 leaves time to prep the 08:00 slot.
+  const hour = jstHour();
+  if (hour >= 23 || hour < 7) {
+    return `深夜帯(JST ${hour}時)につきスキップ`;
+  }
+
   // Condition 1: Next slot is 30+ minutes away OR all slots consumed
   const inSlot = isInPublishSlot();
   const currentSlot = getSlotIndex();
@@ -409,7 +424,15 @@ export function shouldFreeIdle(state: AppState): string | null {
 }
 
 export function getAvailableActions(state: AppState): string[] {
-  const actions: string[] = ["research", "analyze", "idle"];
+  const actions: string[] = ["research", "idle"];
+
+  // Cost control: analyze re-sends the full context and was being chosen many
+  // times per day. Offer it at most once per JST day.
+  const today = jstToday();
+  const analyzedToday = state.journal.includes(today) && state.journal.includes("— analyze");
+  if (!analyzedToday) {
+    actions.push("analyze");
+  }
 
   // Draft inventory gate: if drafted + reviewed >= 3, suppress new writing
   const unpublishedCount = state.articles.filter(

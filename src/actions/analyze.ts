@@ -1,7 +1,7 @@
 import type { AppState } from "../state.js";
 import { saveStrategy } from "../state.js";
 import { generateContent } from "../claude-api.js";
-import { PV_SUCCESS_THRESHOLD } from "../config.js";
+import { PV_SUCCESS_THRESHOLD, DECISION_MODEL } from "../config.js";
 import { log } from "../logger.js";
 import type { ActionResult } from "./index.js";
 
@@ -60,7 +60,8 @@ Markdownのみを返してください。`;
   const newStrategy = await generateContent(
     "あなたはブログ戦略コンサルタントです。データに基づいた実践的な戦略を提案してください。",
     prompt,
-    2048
+    2048,
+    DECISION_MODEL
   );
 
   saveStrategy(newStrategy);

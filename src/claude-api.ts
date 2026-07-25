@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ANTHROPIC_API_KEY, CLAUDE_MODEL } from "./config.js";
+import { ANTHROPIC_API_KEY, CLAUDE_MODEL, DECISION_MODEL, anthropicPricing } from "./config.js";
 import { recordUsage } from "./budget.js";
 import { log } from "./logger.js";
 
@@ -200,7 +200,7 @@ export async function decideAction(
   log("INFO", `Claude API: deciding action from [${availableActions.join(", ")}]`);
 
   const response = await client.messages.create({
-    model: CLAUDE_MODEL,
+    model: DECISION_MODEL,
     max_tokens: 1024,
     system: systemPrompt,
     tools,
@@ -208,9 +208,10 @@ export async function decideAction(
     messages: [{ role: "user", content: contextMessage }],
   });
 
-  // Record usage
+  // Record usage (priced for the decision model)
   if (response.usage) {
-    recordUsage(response.usage.input_tokens, response.usage.output_tokens);
+    const p = anthropicPricing(DECISION_MODEL);
+    recordUsage(response.usage.input_tokens, response.usage.output_tokens, p.input, p.output);
     log(
       "INFO",
       `Claude API usage: in=${response.usage.input_tokens} out=${response.usage.output_tokens}`
@@ -232,19 +233,21 @@ export async function decideAction(
 export async function generateContent(
   systemPrompt: string,
   userPrompt: string,
-  maxTokens = 4096
+  maxTokens = 4096,
+  model: string = CLAUDE_MODEL
 ): Promise<string> {
-  log("INFO", "Claude API: generating content");
+  log("INFO", `Claude API: generating content (${model})`);
 
   const response = await client.messages.create({
-    model: CLAUDE_MODEL,
+    model,
     max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
   });
 
   if (response.usage) {
-    recordUsage(response.usage.input_tokens, response.usage.output_tokens);
+    const p = anthropicPricing(model);
+    recordUsage(response.usage.input_tokens, response.usage.output_tokens, p.input, p.output);
     log(
       "INFO",
       `Claude API usage: in=${response.usage.input_tokens} out=${response.usage.output_tokens}`

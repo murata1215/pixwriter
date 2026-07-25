@@ -24,13 +24,28 @@ export const PIXBLOG_API_TOKEN = process.env.PIXBLOG_API_TOKEN ?? "";
 // Claude API
 export const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? "";
 export const CLAUDE_MODEL = "claude-sonnet-4-6" as const;
+// Cheaper model for lightweight, non-generation work (action decision, PV
+// analysis). Article body generation stays on CLAUDE_MODEL (sonnet) for quality.
+export const DECISION_MODEL = "claude-haiku-4-5-20251001" as const;
 
 // Budget
 export const MONTHLY_BUDGET_USD = 20;
 
-// Pricing (Claude Sonnet 4, per million tokens)
+// Pricing (per million tokens)
+// Claude Sonnet 4
 export const INPUT_PRICE_PER_M = 3.0;
 export const OUTPUT_PRICE_PER_M = 15.0;
+// Claude Haiku 4.5
+export const HAIKU_INPUT_PRICE_PER_M = 1.0;
+export const HAIKU_OUTPUT_PRICE_PER_M = 5.0;
+
+/** Returns the per-million-token pricing for an Anthropic model id. */
+export function anthropicPricing(model: string): { input: number; output: number } {
+  if (model.includes("haiku")) {
+    return { input: HAIKU_INPUT_PRICE_PER_M, output: HAIKU_OUTPUT_PRICE_PER_M };
+  }
+  return { input: INPUT_PRICE_PER_M, output: OUTPUT_PRICE_PER_M };
+}
 
 // Timezone
 export const JST_OFFSET_HOURS = 9;
@@ -63,7 +78,7 @@ export const PUBLISH_SLOTS_UTC = [
 ];
 
 // Journal
-export const JOURNAL_PROMPT_ENTRIES = 20;
+export const JOURNAL_PROMPT_ENTRIES = 12;
 
 // OpenAI (image generation)
 export const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";

@@ -568,17 +568,26 @@ async function postDraft(
   html: string,
   meta: { title: string; excerpt: string; tags: string[] },
   slug: string
-): Promise<number> {
+): Promise<{ id: number; url: string }> {
   log("INFO", `[citygen] Posting draft to PixBlog (slug=${slug})`);
 
   // PixBlog API: HTML uses `content` field (not `body`, no `content_format`).
-  // `body` + `content_format: "markdown"` is for markdown only.
-  // Since createPost's type uses `body`, we call the API directly.
-  const { PIXBLOG_BASE_URL, PIXBLOG_API_TOKEN } = await import("../config.js");
+  // Token comes from ~/.pixblog_token (nagoya-ijyu account), NOT from
+  // .pixblog-agent.env (which is the old blog agent's fwjg2507 token).
+  const tokenPath = "/home/pixwriter/.pixblog_token";
+  if (!fs.existsSync(tokenPath)) {
+    throw new Error(`PixBlog token file not found: ${tokenPath}. Refusing to fall back to .pixblog-agent.env.`);
+  }
+  const token = fs.readFileSync(tokenPath, "utf-8").trim();
+  if (!token) {
+    throw new Error(`PixBlog token file is empty: ${tokenPath}`);
+  }
+
+  const { PIXBLOG_BASE_URL } = await import("../config.js");
   const res = await fetch(`${PIXBLOG_BASE_URL}/api/v1/posts`, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${PIXBLOG_API_TOKEN}`,
+      "Authorization": `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -597,7 +606,7 @@ async function postDraft(
 
   const post = (await res.json()) as { id: number; url: string };
   log("INFO", `[citygen] Draft posted: post_id=${post.id}, url=${post.url}`);
-  return post.id;
+  return { id: post.id, url: post.url };
 }
 
 async function recordArticleAndCitations(
@@ -821,13 +830,14 @@ export async function generateCityArticle(
   if (doPost) {
     if (!slug) throw new Error("--slug is required when --post is specified");
 
-    postId = await postDraft(
+    const postResult = await postDraft(
       html,
       { title: llmOutput.title, excerpt: llmOutput.excerpt, tags: meta.tags as string[] },
       slug
     );
+    postId = postResult.id;
     meta.post_id = postId;
-    meta.url = `https://pixblog.net/u/fwjg2507/${slug}`;
+    meta.url = postResult.url;
 
     // Record article and citations in pixdata
     try {

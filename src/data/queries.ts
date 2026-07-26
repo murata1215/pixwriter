@@ -92,6 +92,32 @@ export interface SourceRow {
   max_figures_per_article: number | null;
 }
 
+export interface EfEpiRow {
+  country: string;
+  rank: number;
+  score: number;
+  band: string;
+}
+
+export interface LanguageData {
+  official_language_ja: string;
+  ef_epi: {
+    year: number;
+    note: string;
+    rows: EfEpiRow[];
+  };
+  eurobarometer: {
+    survey: string;
+    eu_english_conversational_pct: number;
+    eu_youth_english_pct: number;
+    note: string;
+  };
+  japanese_infra: {
+    japanese_school: boolean;
+    note: string;
+  };
+}
+
 export interface MockData {
   city: CityRow;
   refCity: CityRow;
@@ -100,6 +126,7 @@ export interface MockData {
   findings: FindingRow[];
   wageAnnual: WageAnnualRow[];
   sources: SourceRow[];
+  language?: LanguageData;
 }
 
 // ---- Query functions ----

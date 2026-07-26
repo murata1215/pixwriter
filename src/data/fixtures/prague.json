@@ -259,6 +259,29 @@
       "basis": "base_only", "bonus_months": 4.62, "stat": "official", "sample_n": null
     }
   ],
+  "language": {
+    "official_language_ja": "チェコ語",
+    "ef_epi": {
+      "year": 2025,
+      "note": "EF英語能力指数2025（123カ国・地域）。自主受験者ベースのため代表性に限界がある",
+      "rows": [
+        { "country": "オランダ", "rank": 1, "score": 624, "band": "非常に高い" },
+        { "country": "スロバキア", "rank": 10, "score": 606, "band": "非常に高い" },
+        { "country": "ハンガリー", "rank": 22, "score": 590, "band": "高い" },
+        { "country": "チェコ", "rank": 23, "score": 582, "band": "高い" }
+      ]
+    },
+    "eurobarometer": {
+      "survey": "Special Eurobarometer 540（2024年5月公表、EU約2.6万人調査）",
+      "eu_english_conversational_pct": 47,
+      "eu_youth_english_pct": 70,
+      "note": "EU平均で47%が英語で会話可能。15-24歳では7割"
+    },
+    "japanese_infra": {
+      "japanese_school": true,
+      "note": "プラハには日本人学校がある"
+    }
+  },
   "sources": [
     {
       "id": "jetro_cost", "name_ja": "投資関連コスト比較調査", "publisher_ja": "ジェトロ",
@@ -276,6 +299,18 @@
       "id": "eurostat", "name_ja": "Eurostat 各種統計", "publisher_ja": "欧州委員会統計局",
       "license": "attribution",
       "attribution_ja": "Source: Eurostat",
+      "max_figures_per_article": null
+    },
+    {
+      "id": "ef_epi", "name_ja": "EF英語能力指数 2025", "publisher_ja": "EF Education First",
+      "license": "attribution",
+      "attribution_ja": "出典：EF EPI 2025（EF Education First）",
+      "max_figures_per_article": null
+    },
+    {
+      "id": "eurobarometer", "name_ja": "Special Eurobarometer 540", "publisher_ja": "欧州委員会",
+      "license": "attribution",
+      "attribution_ja": "出典：Special Eurobarometer 540（2024）",
       "max_figures_per_article": null
     }
   ]

@@ -1,7 +1,14 @@
 /**
- * City profile article generator (B-article).
+ * City profile article generator (B-article) — v2.
  * Reads data from pixdata DB (or mock), generates article body via Claude,
  * validates numbers, assembles self-contained HTML.
+ *
+ * v2 changes:
+ * - Editorial rules: reader lock (individual, not corporate), no internal
+ *   vocabulary, specific-number titles, assertion/reservation distinction
+ * - Language section added
+ * - Method section now shows only actually-used sources
+ * - Title validation (rejects generic titles like "◯◯比較")
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -16,6 +23,7 @@ import type {
   WageAnnualRow,
   ValueRow,
   SourceRow,
+  LanguageData,
 } from "./queries.js";
 import {
   getCity,
@@ -28,22 +36,22 @@ import {
 } from "./queries.js";
 import { heroSvg, comparisonBarsSvg, type BarRow } from "./svg.js";
 
-// ---- Metric name map ----
+// ---- Metric display names (reader-facing) ----
 const METRIC_NAME: Record<string, string> = {
-  tax_vat: "付加価値税",
-  tax_income_max: "個人所得税(最高税率)",
-  tax_corp: "法人所得税",
+  tax_vat: "消費税（付加価値税）",
+  tax_income_max: "所得税（最高税率）",
+  tax_corp: "法人税",
   petrol: "ガソリン",
   diesel: "軽油",
-  rent_expat: "駐在員住宅",
-  wage_worker: "ワーカー賃金",
-  wage_engineer: "エンジニア賃金",
-  wage_manager: "管理職賃金",
-  elec_household: "電気(一般用)",
-  si_employee: "社会保険(被雇用者)",
+  rent_expat: "住宅家賃",
+  wage_worker: "一般職の賃金",
+  wage_engineer: "技術職の賃金",
+  wage_manager: "管理職の賃金",
+  elec_household: "電気代",
+  si_employee: "社会保険料（本人負担）",
 };
 
-// ---- LLM prompt ----
+// ---- LLM prompt (v2) ----
 
 interface LlmInput {
   city: CityRow;
@@ -52,6 +60,7 @@ interface LlmInput {
   findings: FindingRow[];
   wageAnnual: WageAnnualRow[];
   values: ValueRow[];
+  language?: LanguageData;
 }
 
 interface LlmOutput {
@@ -63,56 +72,102 @@ interface LlmOutput {
     sourceNote: string;
     paragraphs: string[];
   }[];
+  languageParagraphs: string[];
   fit: string[];
   unfit: string[];
 }
 
 function buildPrompt(input: LlmInput): { system: string; user: string } {
-  const { city, refCity, comparisons, findings, wageAnnual, values } = input;
+  const { city, refCity, comparisons, findings, wageAnnual, language } = input;
 
-  // Build comparison table text
+  // Build comparison table in reader-facing format (no internal vocabulary)
   const compTable = comparisons
     .sort((a, b) => Math.abs(b.index_vs_ref - 100) - Math.abs(a.index_vs_ref - 100))
     .map((c) => {
-      const flags: string[] = [];
-      if (c.flag_basis_mismatch) flags.push("basis_mismatch");
-      if (c.flag_stat_mismatch) flags.push("stat_mismatch");
-      if (c.flag_spec_mismatch) flags.push("spec_mismatch");
-      const flagStr = flags.length > 0 ? ` [FLAGS: ${flags.join(",")}]` : "";
-      const notes = [c.definition_note, c.ref_definition_note].filter(Boolean).join(" / ");
-      return `- ${METRIC_NAME[c.metric_id] ?? c.metric_id}: index=${c.index_vs_ref} (${city.name_ja}=${c.val_base}, ${refCity.name_ja}=${c.ref_val_base})${flagStr}\n  注記: ${notes}`;
+      const ratio = (c.index_vs_ref / 100).toFixed(2);
+      const caveats: string[] = [];
+      if (c.flag_basis_mismatch || c.flag_stat_mismatch) {
+        caveats.push(`※定義が異なる: ${city.name_ja}側「${c.definition_note ?? ""}」/ ${refCity.name_ja}側「${c.ref_definition_note ?? ""}」`);
+      }
+      if (c.flag_spec_mismatch) {
+        caveats.push(`※物件の条件（面積等）が異なるため、そのまま比較できない`);
+      }
+      const caveatStr = caveats.length > 0 ? `\n  ${caveats.join("\n  ")}` : "";
+      return `- ${METRIC_NAME[c.metric_id] ?? c.metric_id}: ${refCity.name_ja}の${ratio}倍（${city.name_ja}=${c.val_base}, ${refCity.name_ja}=${c.ref_val_base}）${caveatStr}`;
     })
     .join("\n");
 
-  // Build wage annual text
+  // Build wage annual text (reader-facing)
   const wageText = wageAnnual
     .map((w) => {
-      const bonusInfo = w.bonus_months ? ` 賞与${w.bonus_months}ヶ月含む年収換算` : " 賞与込み年額";
-      return `- ${w.city_id} / ${METRIC_NAME[w.metric_id] ?? w.metric_id}: 月額USD${w.monthly_base.toFixed(0)}, 年額USD${w.annual_base.toFixed(0)} (${w.basis}${bonusInfo}, ${w.stat})`;
+      const cityName = w.city_id === city.id ? city.name_ja : refCity.name_ja;
+      const bonusInfo = w.bonus_months
+        ? `（基本給のみ。賞与${w.bonus_months}ヶ月分を加えた年収で比較）`
+        : "（賞与込みの年額）";
+      return `- ${cityName} / ${METRIC_NAME[w.metric_id] ?? w.metric_id}: 月額USD${w.monthly_base.toFixed(0)}, 年額USD${w.annual_base.toFixed(0)} ${bonusInfo}`;
     })
     .join("\n");
 
-  // Build findings text
+  // Build findings text (reader-facing, no internal vocabulary)
   const findingsText = findings
-    .map((f) => `- ${f.name_ja}: index=${f.index_vs_ref} (${f.kind}, deviation=${f.deviation})${f.needs_caveat ? " ⚠要注記" : ""}`)
+    .map((f) => {
+      const ratio = (f.index_vs_ref / 100).toFixed(1);
+      const direction = f.kind === "much_higher" ? `${refCity.name_ja}の${ratio}倍` : `${refCity.name_ja}の${ratio}倍（低い）`;
+      return `- ${f.name_ja}: ${direction}${f.needs_caveat ? "（ただし調査条件が異なるため注記が必要）" : ""}`;
+    })
     .join("\n");
 
-  const system = `あなたは都市比較記事の執筆者です。以下のルールを厳守してください。
+  // Build language section data
+  let languageText = "";
+  if (language) {
+    const epiRows = language.ef_epi.rows
+      .map((r) => `  ${r.country}: ${r.rank}位 / スコア${r.score}（${r.band}）`)
+      .join("\n");
+    languageText = `
+## 言語
+- 公用語: ${language.official_language_ja}
+- EF英語能力指数（${language.ef_epi.year}年、${language.ef_epi.note}）:
+${epiRows}
+- EU全体の英語会話可能率: ${language.eurobarometer.eu_english_conversational_pct}%（${language.eurobarometer.survey}）
+- EU若年層（15-24歳）の英語会話可能率: ${language.eurobarometer.eu_youth_english_pct}%
+- 日本人学校: ${language.japanese_infra.japanese_school ? "あり" : "なし"}（${language.japanese_infra.note}）
+- 注意: チェコ人の英語会話可能率の国別数値はデータにないため書かないこと。EF順位とEU平均からの示唆に留める
+- EF EPIの方法論上の限界（自主受験ベースのため代表性に限界がある点）を本文中で注記すること`;
+  }
+
+  const system = `あなたは、日本からの個人移住を検討している読者に向けて、都市の生活コストを数字で解説する記事の執筆者である。以下のルールを厳守すること。
 
 【絶対ルール】
 1. 提供された数値以外の数字を一切書かない。年号・統計値・順位等を創作してはならない。
 2. 各セクションは提供データの範囲で書く。データにない主張をしない。
-3. flag (basis_mismatch, stat_mismatch, spec_mismatch) が立っている比較には、必ず注記（definition_noteの内容）を本文に織り込む。「ただし定義が異なる」等の但し書きを入れる。
+3. 比較データに「定義が異なる」「物件条件が異なる」等の注記がある場合、本文中で自然な日本語で非対称性を説明する（例:「ただし両都市の数字は調査主体も集計方法も異なるため、そのまま優劣とは読めない」）。
 4. 体験談・感想は書かない。筆者は現地に住んだことがない前提。
-5. 文体は「だ・である」調。断定と留保を使い分ける。数字で言えることに徹する。
+5. 文体は「だ・である」調。確度の高い事実（税率・公定価格）は断定し、実例1件の比較（住宅等）は「一つの手がかり」として留保する。
 6. 各段落は短く（3-5文）。
+
+【読者ロック】
+7. 読者は「日本から個人として移住を検討している人」。
+   「企業」「法人」「進出」「事業者」「投資」「駐在員コスト」等の企業向け語彙を使わない。
+   データがJETRO調査由来でも、生活者の言葉に翻訳する
+   （例: 付加価値税→「買い物のたびにかかる税」、燃料費→「車のある生活のコスト」）。
+   「向く/向かない」は個人の条件（収入源のパターン、生活様式、職種、家族構成）で書く。
+
+【内部語彙の禁止】
+8. 出力に以下を含めてはならない: index=、basis_mismatch、stat_mismatch、spec_mismatch、flag、v_comparison、deviation。
+   比較の非対称性は自然な日本語で説明する。
+
+【タイトルとリードの規則】
+9. タイトルは最も意外な数値2つを具体的な倍率・分数で示す形にする
+   （手本:「電気は3分の2、ガソリンは1.5倍——プラハの生活コストを名古屋と比べた」）。
+   「◯◯プロファイル」「◯◯比較」「コスト比較」等の総称タイトルは禁止。
+   リード第1文も具体的な数字から入る。
 
 【出力形式】
 以下のJSON形式で返してください（他の文章は不要）:
 {
-  "title": "記事タイトル（都市名を含む、40字以内）",
+  "title": "記事タイトル（都市名と具体的数値を含む。総称禁止）",
   "excerpt": "検索スニペット用の説明（100-160字）",
-  "lead": ["リード段落1", "リード段落2", "リード段落3"],
+  "lead": ["リード段落1（具体的な数字から始める）", "リード段落2", "リード段落3"],
   "sections": [
     {
       "heading": "セクション見出し（番号付き）",
@@ -120,29 +175,32 @@ function buildPrompt(input: LlmInput): { system: string; user: string } {
       "paragraphs": ["段落1", "段落2"]
     }
   ],
-  "fit": ["向く条件1", "向く条件2", "向く条件3"],
-  "unfit": ["向かない条件1", "向かない条件2", "向かない条件3"]
+  "languageParagraphs": ["言語セクションの段落1", "段落2"],
+  "fit": ["向く個人条件1", "向く個人条件2", "向く個人条件3"],
+  "unfit": ["向かない個人条件1", "向かない個人条件2", "向かない個人条件3"]
 }
 
-セクション数は3-5個。各セクションは比較データの中から1-2個の指標にフォーカスし、その数値が何を意味するかを解説する。`;
+セクション数は3-5個。各セクションは比較データの中から1-2個の指標にフォーカスし、個人の暮らしにとって何を意味するかを解説する。
+languageParagraphsは2-3段落。言語データが提供されている場合のみ書く。`;
 
-  const user = `以下のデータから、${city.name_ja}（${city.country_ja}）の都市プロファイル記事を生成してください。
-比較基準都市: ${refCity.name_ja}
+  const user = `以下のデータから、${city.name_ja}（${city.country_ja}）に移住した場合の生活コストを${refCity.name_ja}と比較する記事を生成してください。
 
-## 比較テーブル（${refCity.name_ja}=100としたindex）
+## 生活コスト比較（${refCity.name_ja}を基準とした倍率）
 ${compTable}
 
-## 発見候補（deviation降順）
+## 特に差が大きい項目
 ${findingsText}
 
-## 賃金の年収換算
+## 賃金の年収換算（賞与込みで揃えた比較）
 ${wageText}
+${languageText}
 
 ## 補足
-- 比較はすべて同一調査（ジェトロ2025年度投資関連コスト比較調査）内で行っている
-- 電気(一般用)は${refCity.name_ja}で未調査のため比較なし。${city.name_ja}の値は0.36 USD/kWh
-- 社会保険被雇用者負担: ${city.name_ja}=11.6%
-- flag付きの比較は、本文中で必ず非対称性を注記すること`;
+- 比較はすべて同一調査（ジェトロ2025年度調査）内で行っている
+- 電気代は${refCity.name_ja}で未調査のため比較なし。${city.name_ja}の値は0.36 USD/kWh
+- 社会保険の本人負担率: ${city.name_ja}=11.6%
+- 注記付きの比較は、本文中で条件の違いを自然な日本語で説明すること
+- 「企業」「法人」「進出」「投資」「駐在員」等の語彙は使わないこと`;
 
   return { system, user };
 }
@@ -159,12 +217,10 @@ function buildAllowedNumbers(input: LlmInput): Set<string> {
 
   const addNum = (n: number | null | undefined) => {
     if (n == null || isNaN(n)) return;
-    // Add exact, rounded variants
     allowed.add(String(n));
     allowed.add(n.toFixed(0));
     allowed.add(n.toFixed(1));
     allowed.add(n.toFixed(2));
-    // Comma-formatted
     if (n >= 1000) {
       allowed.add(n.toLocaleString("en-US"));
     }
@@ -174,7 +230,6 @@ function buildAllowedNumbers(input: LlmInput): Set<string> {
     addNum(c.index_vs_ref);
     addNum(c.val_base);
     addNum(c.ref_val_base);
-    // Allow ratio expressions: index/100 → e.g. 210 → 2.1 ("2.1倍")
     addNum(c.index_vs_ref / 100);
   }
   for (const f of input.findings) {
@@ -194,13 +249,11 @@ function buildAllowedNumbers(input: LlmInput): Set<string> {
     addNum(v.val_base);
     addNum(v.sample_n);
     addNum(v.spec_area_sqm);
-    // Extract numbers from definition_note (e.g. "107-175m2" → 107, 175)
     if (v.definition_note) {
       const noteNums = v.definition_note.match(/[\d,]+(?:\.\d+)?/g) ?? [];
       for (const nn of noteNums) addNum(parseFloat(nn.replace(/,/g, "")));
     }
   }
-  // Also extract numbers from comparison definition_notes
   for (const c of input.comparisons) {
     for (const note of [c.definition_note, c.ref_definition_note]) {
       if (note) {
@@ -210,15 +263,13 @@ function buildAllowedNumbers(input: LlmInput): Set<string> {
     }
   }
 
-  // Allow cross-value derived ratios: LLM may express index as "X.X倍"
-  // or compute area/wage ratios between the two cities
+  // Cross-value derived ratios
   for (const c of input.comparisons) {
     if (c.val_base > 0 && c.ref_val_base > 0) {
       addNum(c.val_base / c.ref_val_base);
       addNum(c.ref_val_base / c.val_base);
     }
   }
-  // Spec area values from definition_notes (nagoya 55.32m2 etc.)
   const specAreas: number[] = [];
   for (const v of input.values) {
     if (v.spec_area_sqm) specAreas.push(v.spec_area_sqm);
@@ -236,7 +287,6 @@ function buildAllowedNumbers(input: LlmInput): Set<string> {
       if (a !== b && b > 0) addNum(a / b);
     }
   }
-  // Allow wage ratios between cities
   const wageVals = input.wageAnnual.map((w) => w.annual_base);
   for (const a of wageVals) {
     for (const b of wageVals) {
@@ -244,10 +294,27 @@ function buildAllowedNumbers(input: LlmInput): Set<string> {
     }
   }
 
-  // Allow common small numbers, years, months, days
+  // Language data numbers
+  if (input.language) {
+    const lang = input.language;
+    addNum(lang.ef_epi.year);
+    for (const r of lang.ef_epi.rows) {
+      addNum(r.rank);
+      addNum(r.score);
+    }
+    addNum(lang.eurobarometer.eu_english_conversational_pct);
+    addNum(lang.eurobarometer.eu_youth_english_pct);
+    // Numbers from EF note (e.g. "123カ国")
+    const epiNoteNums = lang.ef_epi.note.match(/[\d,]+(?:\.\d+)?/g) ?? [];
+    for (const nn of epiNoteNums) addNum(parseFloat(nn.replace(/,/g, "")));
+    // Numbers from eurobarometer note/survey (e.g. "2.6万人")
+    const ebNums = (lang.eurobarometer.survey + " " + lang.eurobarometer.note).match(/[\d,]+(?:\.\d+)?/g) ?? [];
+    for (const nn of ebNums) addNum(parseFloat(nn.replace(/,/g, "")));
+  }
+
+  // Common small numbers, years, months, days
   for (let i = 0; i <= 31; i++) allowed.add(String(i));
   for (let y = 2020; y <= 2030; y++) allowed.add(String(y));
-  // Allow percentages already in data
   allowed.add("100");
 
   return allowed;
@@ -262,7 +329,6 @@ function validateNumbers(
 
   for (const n of nums) {
     if (allowed.has(n)) continue;
-    // Check +-5% tolerance (LLM naturally rounds when expressing ratios)
     const nv = parseFloat(n);
     if (isNaN(nv)) continue;
     let found = false;
@@ -277,6 +343,21 @@ function validateNumbers(
   }
 
   return { valid: violations.length === 0, violations };
+}
+
+// ---- Title validation ----
+
+const GENERIC_TITLE_PATTERNS = [
+  /プロファイル/,
+  /比較$/,
+  /コスト比較/,
+  /データ比較/,
+  /概要/,
+  /まとめ/,
+];
+
+function isGenericTitle(title: string): boolean {
+  return GENERIC_TITLE_PATTERNS.some((p) => p.test(title));
 }
 
 // ---- HTML assembly ----
@@ -295,9 +376,9 @@ function buildComparisonTable(
       const name = METRIC_NAME[c.metric_id] ?? c.metric_id;
       const hi = Math.abs(c.index_vs_ref - 100) > 40 ? ' class="hi"' : "";
       const flags: string[] = [];
-      if (c.flag_basis_mismatch) flags.push("定義差あり");
-      if (c.flag_spec_mismatch) flags.push("面積差あり");
-      if (c.flag_stat_mismatch) flags.push("統計手法差あり");
+      if (c.flag_basis_mismatch) flags.push("調査条件が異なる");
+      if (c.flag_spec_mismatch) flags.push("物件条件が異なる");
+      if (c.flag_stat_mismatch) flags.push("集計方法が異なる");
       const note = flags.length > 0 ? `<br><span style="font-size:12px;color:#6B7079">${flags.join("、")}</span>` : "";
       return `<tr${hi}><td>${name}${note}</td><td class="n">${c.index_vs_ref}</td></tr>`;
     })
@@ -311,11 +392,15 @@ ${rows}
 </table>`;
 }
 
-function buildMethodSection(sources: SourceRow[]): string {
-  const sourceRows = sources
-    .filter((s) => s.attribution_ja)
+function buildMethodSection(usedSourceIds: Set<string>, allSources: SourceRow[], hasLanguage: boolean): string {
+  const sourceRows = allSources
+    .filter((s) => usedSourceIds.has(s.id) && s.attribution_ja)
     .map((s) => `<tr><td>${s.name_ja}</td><td>${s.attribution_ja}</td></tr>`)
     .join("\n");
+
+  const epiCaveat = hasLanguage
+    ? `<li>EF英語能力指数（EF EPI）は自主受験者の成績に基づくため、各国の英語力の代表値とは限りません。傾向の把握として参照しています</li>\n`
+    : "";
 
   return `<div class="method">
 <h2>この記事のデータについて</h2>
@@ -333,7 +418,7 @@ ${sourceRows}
 <li>住居費は市場平均ではなく、各都市1〜2件の実例です。物件のグレードや立地条件は完全には揃っていません</li>
 <li>賃金はすべて税引き前（グロス）です。定義（賞与込み/別、平均/中央値）が都市間で異なる場合があり、本文中で注記しています</li>
 <li>統計の参照年は項目により異なります</li>
-<li>ビザ・在留資格は頻繁に変わるため本記事では扱っていません</li>
+${epiCaveat}<li>ビザ・在留資格は頻繁に変わるため本記事では扱っていません</li>
 </ul>
 
 <p class="foot" style="margin-top:24px">本記事は公的統計に基づく情報提供であり、移住の可否を助言するものではありません。実際の判断にあたっては、税務・法務・在留資格について専門家にご相談ください。</p>
@@ -347,7 +432,8 @@ function assembleHtml(
   compTableHtml: string,
   methodHtml: string,
   city: CityRow,
-  refCity: CityRow
+  refCity: CityRow,
+  hasLanguage: boolean
 ): string {
   const today = new Date().toISOString().slice(0, 10);
 
@@ -367,7 +453,16 @@ ${s.paragraphs.map((p) => `<p>${p}</p>`).join("\n")}`
   const fitHtml = llmOutput.fit.map((f) => `<li>${f}</li>`).join("\n");
   const unfitHtml = llmOutput.unfit.map((u) => `<li>${u}</li>`).join("\n");
 
-  // Read the CSS from the reference article
+  // Language section
+  let languageHtml = "";
+  if (hasLanguage && llmOutput.languageParagraphs?.length > 0) {
+    languageHtml = `
+<h2>言語 — 何語が話せれば暮らせるか</h2>
+<p class="h2note">SOURCE — EF EPI 2025 / Eurobarometer 540</p>
+${llmOutput.languageParagraphs.map((p) => `<p>${p}</p>`).join("\n")}
+`;
+  }
+
   const css = getReferenceCss();
 
   return `<div class="iju-post">
@@ -394,6 +489,8 @@ ${compBarsSvgStr}
 ${compTableHtml}
 
 ${sectionsHtml}
+
+${languageHtml}
 
 <h2>誰に向いて、誰に向かないか</h2>
 <p class="h2note">ASSESSMENT — 上記データからの解釈</p>
@@ -423,14 +520,13 @@ ${methodHtml}
 }
 
 function getReferenceCss(): string {
-  // Extract <style>...</style> from the reference article
   try {
     const refPath = "/opt/pixdata/doc/B-budapest-pixblog.html";
     const content = fs.readFileSync(refPath, "utf-8");
     const match = content.match(/<style>[\s\S]*?<\/style>/);
     if (match) return match[0];
   } catch {
-    // Fallback: return empty style
+    // Fallback
   }
   return "<style>/* reference CSS not found */</style>";
 }
@@ -464,18 +560,20 @@ export async function generateCityArticle(
   const findings = await getFindings(cityId, mock);
   const wageAnnual = await getWageAnnual(cityId, refCityId, mock);
   const sources = await getSources(mock);
+  const language = mock?.language;
 
-  log("INFO", `[citygen] Data: ${comparisons.length} comparisons, ${findings.length} findings, ${wageAnnual.length} wage rows`);
+  log("INFO", `[citygen] Data: ${comparisons.length} comparisons, ${findings.length} findings, ${wageAnnual.length} wage rows, language=${!!language}`);
 
   // 2. Build LLM input
-  const llmInput: LlmInput = { city, refCity, comparisons, findings, wageAnnual, values };
+  const llmInput: LlmInput = { city, refCity, comparisons, findings, wageAnnual, values, language };
   const { system, user } = buildPrompt(llmInput);
   const allowedNumbers = buildAllowedNumbers(llmInput);
 
-  // 3. Generate via Claude (sonnet)
+  // 3. Generate via Claude (sonnet) with validation gates
   log("INFO", `[citygen] Generating article body via ${CLAUDE_MODEL}`);
   let llmOutput: LlmOutput | null = null;
   let attempt = 0;
+  let titleRetried = false;
 
   while (attempt < 2) {
     attempt++;
@@ -497,27 +595,39 @@ export async function generateCityArticle(
       continue;
     }
 
-    // 4. Number validation gate
+    // 4a. Number validation gate
     const allText = [
       ...llmOutput.lead,
       ...llmOutput.sections.flatMap((s) => s.paragraphs),
+      ...(llmOutput.languageParagraphs ?? []),
       ...llmOutput.fit,
       ...llmOutput.unfit,
     ].join(" ");
 
     const { valid, violations } = validateNumbers(allText, allowedNumbers);
-    if (valid) {
-      log("INFO", `[citygen] Number validation PASSED (attempt ${attempt})`);
-      break;
-    } else {
+    if (!valid) {
       log("WARN", `[citygen] Number validation FAILED (attempt ${attempt}): violations=[${violations.join(", ")}]`);
       if (attempt >= 2) {
-        throw new Error(
-          `Number validation failed after 2 attempts. Violations: ${violations.join(", ")}`
-        );
+        throw new Error(`Number validation failed after 2 attempts. Violations: ${violations.join(", ")}`);
       }
-      llmOutput = null; // retry
+      llmOutput = null;
+      continue;
     }
+
+    log("INFO", `[citygen] Number validation PASSED (attempt ${attempt})`);
+
+    // 4b. Title validation gate (one retry only)
+    if (isGenericTitle(llmOutput.title) && !titleRetried) {
+      log("WARN", `[citygen] Generic title detected: "${llmOutput.title}". Retrying once.`);
+      titleRetried = true;
+      llmOutput = null;
+      continue;
+    }
+    if (isGenericTitle(llmOutput.title)) {
+      log("WARN", `[citygen] Generic title persisted after retry: "${llmOutput.title}". Proceeding anyway.`);
+    }
+
+    break;
   }
 
   if (!llmOutput) throw new Error("LLM generation failed");
@@ -535,12 +645,21 @@ export async function generateCityArticle(
 
   const compBars = comparisonBarsSvg(barRows, refCity.name_ja);
 
-  // 6. Build HTML table and method section
+  // 6. Build HTML components
   const compTable = buildComparisonTable(comparisons, city.name_ja, refCity.name_ja);
-  const methodSection = buildMethodSection(sources);
+
+  // Determine which sources were actually used
+  const usedSourceIds = new Set<string>();
+  usedSourceIds.add("jetro_cost"); // always used for comparisons
+  if (language) {
+    usedSourceIds.add("ef_epi");
+    usedSourceIds.add("eurobarometer");
+  }
+
+  const methodSection = buildMethodSection(usedSourceIds, sources, !!language);
 
   // 7. Assemble HTML
-  const html = assembleHtml(llmOutput, hero, compBars, compTable, methodSection, city, refCity);
+  const html = assembleHtml(llmOutput, hero, compBars, compTable, methodSection, city, refCity, !!language);
 
   // 8. Count JETRO figures used
   const allLlmText = [
@@ -554,7 +673,16 @@ export async function generateCityArticle(
     log("INFO", `[citygen] JETRO figures used: ${jetroCount}/8`);
   }
 
-  // 9. Write output
+  // 9. Check for internal vocabulary leaks
+  const internalVocab = ["index=", "basis_mismatch", "stat_mismatch", "spec_mismatch", "flag_", "v_comparison", "deviation="];
+  const htmlLower = html.toLowerCase();
+  for (const term of internalVocab) {
+    if (htmlLower.includes(term.toLowerCase())) {
+      log("WARN", `[citygen] Internal vocabulary leak detected in HTML: "${term}"`);
+    }
+  }
+
+  // 10. Write output
   fs.mkdirSync(outDir, { recursive: true });
   const htmlPath = path.join(outDir, `${cityId}-draft.html`);
   const metaPath = path.join(outDir, `${cityId}-meta.json`);

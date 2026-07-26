@@ -15,7 +15,7 @@ import { generateContent } from "../claude-api.js";
 import { CLAUDE_MODEL } from "../config.js";
 import { createPost } from "../pixblog-api.js";
 import { log } from "../logger.js";
-import { writeQuery } from "./db.js";
+import { query as dbQuery } from "./db.js";
 import type {
   MockData,
   CityRow,
@@ -609,7 +609,7 @@ async function recordArticleAndCitations(
   const articleId = `pixblog-${postId}`;
 
   // Insert article record
-  await writeQuery(
+  await dbQuery(
     "INSERT INTO article (id, profile, city_id, title_ja, status) VALUES ($1, $2, $3, $4, $5)",
     [articleId, "b", cityId, title, "draft"]
   );
@@ -622,7 +622,7 @@ async function recordArticleAndCitations(
 
   for (const v of values) {
     try {
-      await writeQuery(
+      await dbQuery(
         "INSERT INTO article_citation (article_id, observation_id) VALUES ($1, $2)",
         [articleId, v.id]
       );

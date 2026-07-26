@@ -3,6 +3,7 @@
  *
  * Usage:
  *   npx tsx src/data/index.ts --city=prague --ref=nagoya --out=/home/pixwriter/out/ --mock
+ *   npx tsx src/data/index.ts --city=prague --ref=nagoya --slug=czechia-prague --post --out=/home/pixwriter/out/
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -14,18 +15,29 @@ import type { MockData } from "./queries.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function parseArgs(): { city: string; ref: string; out: string; mock: boolean } {
+function parseArgs(): {
+  city: string;
+  ref: string;
+  out: string;
+  mock: boolean;
+  post: boolean;
+  slug: string;
+} {
   const args = process.argv.slice(2);
   let city = "";
   let ref = "nagoya";
   let out = "";
   let mock = false;
+  let post = false;
+  let slug = "";
 
   for (const arg of args) {
     if (arg.startsWith("--city=")) city = arg.slice(7);
     else if (arg.startsWith("--ref=")) ref = arg.slice(6);
     else if (arg.startsWith("--out=")) out = arg.slice(6);
+    else if (arg.startsWith("--slug=")) slug = arg.slice(7);
     else if (arg === "--mock") mock = true;
+    else if (arg === "--post") post = true;
   }
 
   if (!city) {
@@ -36,14 +48,18 @@ function parseArgs(): { city: string; ref: string; out: string; mock: boolean } 
     console.error("Error: --out=<dir> is required");
     process.exit(1);
   }
+  if (post && !slug) {
+    console.error("Error: --slug=<slug> is required when --post is specified");
+    process.exit(1);
+  }
 
-  return { city, ref, out, mock };
+  return { city, ref, out, mock, post, slug };
 }
 
 async function main() {
-  const { city, ref, out, mock: isMock } = parseArgs();
+  const { city, ref, out, mock: isMock, post, slug } = parseArgs();
 
-  log("INFO", `[data-gen] Starting: city=${city} ref=${ref} out=${out} mock=${isMock}`);
+  log("INFO", `[data-gen] Starting: city=${city} ref=${ref} out=${out} mock=${isMock} post=${post} slug=${slug || "(none)"}`);
 
   let mockData: MockData | undefined;
 
@@ -58,25 +74,28 @@ async function main() {
   }
 
   try {
-    const { htmlPath, metaPath } = await generateCityArticle(
-      city,
-      ref,
-      out,
-      mockData
-    );
+    const result = await generateCityArticle({
+      cityId: city,
+      refCityId: ref,
+      outDir: out,
+      mock: mockData,
+      post,
+      slug,
+    });
 
     console.log(`\nGenerated:`);
-    console.log(`  HTML: ${htmlPath}`);
-    console.log(`  Meta: ${metaPath}`);
+    console.log(`  HTML: ${result.htmlPath}`);
+    console.log(`  Meta: ${result.metaPath}`);
+    if (result.postId) {
+      console.log(`  PixBlog post_id: ${result.postId}`);
+    }
     console.log(`\nDone.`);
   } catch (err) {
     log("ERROR", `[data-gen] Failed: ${err}`);
     console.error(`Error: ${err}`);
     process.exit(1);
   } finally {
-    if (!isMock) {
-      await endDb();
-    }
+    await endDb();
   }
 }
 

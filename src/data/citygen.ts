@@ -3,18 +3,19 @@
  * Reads data from pixdata DB (or mock), generates article body via Claude,
  * validates numbers, assembles self-contained HTML.
  *
- * v2 changes:
- * - Editorial rules: reader lock (individual, not corporate), no internal
- *   vocabulary, specific-number titles, assertion/reservation distinction
- * - Language section added
- * - Method section now shows only actually-used sources
- * - Title validation (rejects generic titles like "◯◯比較")
+ * v2 → v3 (Phase 2):
+ * - Language data loaded from src/data/lang/{cityId}.json (not fixture/mock)
+ * - --post support: draft posting to PixBlog + article/citation recording in pixdata
+ * - Real DB mode (queries.ts functions run against pixdata)
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { generateContent } from "../claude-api.js";
 import { CLAUDE_MODEL } from "../config.js";
+import { createPost } from "../pixblog-api.js";
 import { log } from "../logger.js";
+import { writeQuery } from "./db.js";
 import type {
   MockData,
   CityRow,
@@ -543,14 +544,107 @@ function countJetroFigures(llmText: string, values: ValueRow[]): number {
   return count;
 }
 
+// ---- Language data loader ----
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function loadLanguageData(cityId: string): LanguageData | undefined {
+  const langPath = path.join(__dirname, "lang", `${cityId}.json`);
+  try {
+    if (fs.existsSync(langPath)) {
+      const data = JSON.parse(fs.readFileSync(langPath, "utf-8")) as LanguageData;
+      log("INFO", `[citygen] Language data loaded from ${langPath}`);
+      return data;
+    }
+  } catch (e) {
+    log("WARN", `[citygen] Failed to load language data: ${e}`);
+  }
+  return undefined;
+}
+
+// ---- Draft posting & citation recording ----
+
+async function postDraft(
+  html: string,
+  meta: { title: string; excerpt: string; tags: string[] },
+  slug: string
+): Promise<number> {
+  log("INFO", `[citygen] Posting draft to PixBlog (slug=${slug})`);
+  const post = await createPost({
+    title: meta.title,
+    body: html,
+    content_format: "html",
+    tags: meta.tags,
+    status: "draft",
+    excerpt: meta.excerpt,
+  });
+  log("INFO", `[citygen] Draft posted: post_id=${post.id}, url=${post.url}`);
+  return post.id;
+}
+
+async function recordArticleAndCitations(
+  postId: number,
+  cityId: string,
+  title: string,
+  values: ValueRow[]
+): Promise<{ articleId: string; citationCount: number }> {
+  const articleId = `pixblog-${postId}`;
+
+  // Insert article record
+  await writeQuery(
+    "INSERT INTO article (id, profile, city_id, title_ja, status) VALUES ($1, $2, $3, $4, $5)",
+    [articleId, "b", cityId, title, "draft"]
+  );
+  log("INFO", `[citygen] Article record created: ${articleId}`);
+
+  // Insert citations for each observation used
+  // We cite all observations from the values array (these are the data points available to the article)
+  let citationCount = 0;
+  const errors: string[] = [];
+
+  for (const v of values) {
+    try {
+      await writeQuery(
+        "INSERT INTO article_citation (article_id, observation_id) VALUES ($1, $2)",
+        [articleId, v.id]
+      );
+      citationCount++;
+    } catch (e) {
+      const msg = String(e);
+      errors.push(`observation_id=${v.id}: ${msg}`);
+      // If this is the citation limit trigger, log but continue
+      if (msg.includes("引用が記事あたり上限")) {
+        log("WARN", `[citygen] Citation limit reached: ${msg}`);
+      } else {
+        log("WARN", `[citygen] Citation insert failed: ${msg}`);
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    log("WARN", `[citygen] ${errors.length} citation inserts had errors`);
+  }
+
+  log("INFO", `[citygen] Citations recorded: ${citationCount}/${values.length}`);
+  return { articleId, citationCount };
+}
+
 // ---- Main generate function ----
 
+export interface GenerateOptions {
+  cityId: string;
+  refCityId: string;
+  outDir: string;
+  mock?: MockData;
+  post?: boolean;
+  slug?: string;
+}
+
 export async function generateCityArticle(
-  cityId: string,
-  refCityId: string,
-  outDir: string,
-  mock?: MockData
-): Promise<{ htmlPath: string; metaPath: string }> {
+  opts: GenerateOptions
+): Promise<{ htmlPath: string; metaPath: string; postId?: number }> {
+  const { cityId, refCityId, outDir, mock, post: doPost, slug } = opts;
+
   // 1. Fetch all data
   log("INFO", `[citygen] Fetching data for ${cityId} vs ${refCityId}`);
   const city = await getCity(cityId, mock);
@@ -560,7 +654,9 @@ export async function generateCityArticle(
   const findings = await getFindings(cityId, mock);
   const wageAnnual = await getWageAnnual(cityId, refCityId, mock);
   const sources = await getSources(mock);
-  const language = mock?.language;
+
+  // Load language data from src/data/lang/{cityId}.json (same for mock and real DB)
+  const language = loadLanguageData(cityId);
 
   log("INFO", `[citygen] Data: ${comparisons.length} comparisons, ${findings.length} findings, ${wageAnnual.length} wage rows, language=${!!language}`);
 
@@ -579,7 +675,6 @@ export async function generateCityArticle(
     attempt++;
     const raw = await generateContent(system, user, 4096, CLAUDE_MODEL);
 
-    // Parse JSON
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       log("WARN", `[citygen] Attempt ${attempt}: No JSON found in LLM output`);
@@ -648,9 +743,8 @@ export async function generateCityArticle(
   // 6. Build HTML components
   const compTable = buildComparisonTable(comparisons, city.name_ja, refCity.name_ja);
 
-  // Determine which sources were actually used
   const usedSourceIds = new Set<string>();
-  usedSourceIds.add("jetro_cost"); // always used for comparisons
+  usedSourceIds.add("jetro_cost");
   if (language) {
     usedSourceIds.add("ef_epi");
     usedSourceIds.add("eurobarometer");
@@ -682,7 +776,7 @@ export async function generateCityArticle(
     }
   }
 
-  // 10. Write output
+  // 10. Write output files
   fs.mkdirSync(outDir, { recursive: true });
   const htmlPath = path.join(outDir, `${cityId}-draft.html`);
   const metaPath = path.join(outDir, `${cityId}-meta.json`);
@@ -690,7 +784,7 @@ export async function generateCityArticle(
   fs.writeFileSync(htmlPath, html);
   log("INFO", `[citygen] HTML written: ${htmlPath}`);
 
-  const meta = {
+  const meta: Record<string, unknown> = {
     title: llmOutput.title,
     excerpt: llmOutput.excerpt,
     tags: [city.name_ja, city.country_ja, "都市データ", "移住", "生活コスト"],
@@ -704,8 +798,35 @@ export async function generateCityArticle(
     })),
   };
 
+  // 11. Post to PixBlog as draft (if --post)
+  let postId: number | undefined;
+  if (doPost) {
+    if (!slug) throw new Error("--slug is required when --post is specified");
+
+    postId = await postDraft(
+      html,
+      { title: llmOutput.title, excerpt: llmOutput.excerpt, tags: meta.tags as string[] },
+      slug
+    );
+    meta.post_id = postId;
+    meta.url = `https://pixblog.net/u/fwjg2507/${slug}`;
+
+    // Record article and citations in pixdata
+    try {
+      const { articleId, citationCount } = await recordArticleAndCitations(
+        postId, cityId, llmOutput.title, values
+      );
+      meta.pixdata_article_id = articleId;
+      meta.citation_count = citationCount;
+    } catch (e) {
+      log("ERROR", `[citygen] Failed to record article/citations in pixdata: ${e}`);
+      log("INFO", `[citygen] Draft was posted (post_id=${postId}) but DB recording failed`);
+      meta.pixdata_error = String(e);
+    }
+  }
+
   fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + "\n");
   log("INFO", `[citygen] Meta written: ${metaPath}`);
 
-  return { htmlPath, metaPath };
+  return { htmlPath, metaPath, postId };
 }

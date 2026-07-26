@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@types/pg": "^8.20.0",
     "openai": "^6.48.0",
+    "pg": "^8.22.0",
     "rss-parser": "^3.13.0",
     "sharp": "^0.35.3"
   },

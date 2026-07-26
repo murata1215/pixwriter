@@ -1,0 +1,282 @@
+{
+  "city": {
+    "id": "prague",
+    "name_ja": "プラハ",
+    "country_ja": "チェコ",
+    "country_iso2": "CZ",
+    "currency": "CZK",
+    "flag_colors": ["#11457E", "#F4F1EC", "#D7141A"],
+    "landscape_ja": "ヴルタヴァ川の谷",
+    "motif_en": "tall gothic spires"
+  },
+  "refCity": {
+    "id": "nagoya",
+    "name_ja": "名古屋",
+    "country_ja": "日本",
+    "country_iso2": "JP",
+    "currency": "JPY",
+    "flag_colors": ["#BC002D", "#F4F1EC", "#4A5D4E"],
+    "landscape_ja": "濃尾平野",
+    "motif_en": "a symmetrical volcanic cone"
+  },
+  "values": [
+    {
+      "id": 101, "city_id": "prague", "metric_id": "wage_worker", "survey_id": "jetro_cost_2025",
+      "category": "wage", "unit": "currency/month", "is_rate": false, "direction": "higher_better",
+      "val_low": 33604.5, "val_high": 33604.5, "val_mid": 33604.5,
+      "val_base": 1568.0, "currency": "CZK",
+      "basis": "incl_bonus", "bonus_months": null, "stat": "median", "sample_n": 11152,
+      "spec_area_sqm": null,
+      "definition_note": "チェコ日本商工会「2025年現地従業員給与アンケート」。工場労働者の中央値。年額を月額換算、基本給+賞与含む",
+      "as_of": "2025-09-30", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 102, "city_id": "prague", "metric_id": "wage_engineer", "survey_id": "jetro_cost_2025",
+      "category": "wage", "unit": "currency/month", "is_rate": false, "direction": "higher_better",
+      "val_low": 59031, "val_high": 59031, "val_mid": 59031,
+      "val_base": 2754.5, "currency": "CZK",
+      "basis": "incl_bonus", "bonus_months": null, "stat": "median", "sample_n": 661,
+      "spec_area_sqm": null,
+      "definition_note": "同上。技術者・設計技師の中央値",
+      "as_of": "2025-09-30", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 103, "city_id": "prague", "metric_id": "wage_manager", "survey_id": "jetro_cost_2025",
+      "category": "wage", "unit": "currency/month", "is_rate": false, "direction": "higher_better",
+      "val_low": 101127, "val_high": 101127, "val_mid": 101127,
+      "val_base": 4720.1, "currency": "CZK",
+      "basis": "incl_bonus", "bonus_months": null, "stat": "median", "sample_n": 316,
+      "spec_area_sqm": null,
+      "definition_note": "同上。一般管理職の中央値",
+      "as_of": "2025-09-30", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 104, "city_id": "prague", "metric_id": "rent_expat", "survey_id": "jetro_cost_2025",
+      "category": "housing", "unit": "currency/month", "is_rate": false, "direction": "lower_better",
+      "val_low": 50000, "val_high": 55000, "val_mid": 52500,
+      "val_base": 2449.8, "currency": "CZK",
+      "basis": "gross", "bonus_months": null, "stat": "range", "sample_n": null,
+      "spec_area_sqm": 141,
+      "definition_note": "Sreality掲載。プラハ6区(日本人学校近く)、107-175m2、駐車場・家具付。VAT・光熱費・共益費別。面積は中央値141m2で登録",
+      "as_of": "2025-09-30", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 105, "city_id": "prague", "metric_id": "elec_household", "survey_id": "jetro_cost_2025",
+      "category": "utility", "unit": "currency/kwh", "is_rate": false, "direction": "lower_better",
+      "val_low": 0.36, "val_high": 0.36, "val_mid": 0.36,
+      "val_base": 0.36, "currency": "USD",
+      "basis": null, "bonus_months": null, "stat": "official", "sample_n": null,
+      "spec_area_sqm": null,
+      "definition_note": "EU統計局。2025年上半期、年間使用量500-1999MWh帯の平均価格。全税込。原本にUSD値で記載",
+      "as_of": "2025-06-30", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 106, "city_id": "prague", "metric_id": "petrol", "survey_id": "jetro_cost_2025",
+      "category": "fuel", "unit": "currency/litre", "is_rate": false, "direction": "lower_better",
+      "val_low": 35, "val_high": 35, "val_mid": 35,
+      "val_base": 1.634, "currency": "CZK",
+      "basis": null, "bonus_months": null, "stat": "single_case", "sample_n": null,
+      "spec_area_sqm": null,
+      "definition_note": "フロレンツ(ガソリンスタンド)",
+      "as_of": "2025-09-30", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 107, "city_id": "prague", "metric_id": "diesel", "survey_id": "jetro_cost_2025",
+      "category": "fuel", "unit": "currency/litre", "is_rate": false, "direction": "lower_better",
+      "val_low": 34, "val_high": 34, "val_mid": 34,
+      "val_base": 1.587, "currency": "CZK",
+      "basis": null, "bonus_months": null, "stat": "single_case", "sample_n": null,
+      "spec_area_sqm": null,
+      "definition_note": "同上",
+      "as_of": "2025-09-30", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 108, "city_id": "prague", "metric_id": "tax_vat", "survey_id": "jetro_cost_2025",
+      "category": "tax", "unit": "pct", "is_rate": true, "direction": "lower_better",
+      "val_low": 21, "val_high": 21, "val_mid": 21,
+      "val_base": 21, "currency": null,
+      "basis": null, "bonus_months": null, "stat": "official", "sample_n": null,
+      "spec_area_sqm": null,
+      "definition_note": "軽減税率12%あり",
+      "as_of": "2025-01-01", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 109, "city_id": "prague", "metric_id": "tax_income_max", "survey_id": "jetro_cost_2025",
+      "category": "tax", "unit": "pct", "is_rate": true, "direction": "lower_better",
+      "val_low": 23, "val_high": 23, "val_mid": 23,
+      "val_base": 23, "currency": null,
+      "basis": null, "bonus_months": null, "stat": "official", "sample_n": null,
+      "spec_area_sqm": null,
+      "definition_note": "所得税法(586/1992)現行法",
+      "as_of": "2025-01-01", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 110, "city_id": "prague", "metric_id": "tax_corp", "survey_id": "jetro_cost_2025",
+      "category": "tax", "unit": "pct", "is_rate": true, "direction": "lower_better",
+      "val_low": 21, "val_high": 21, "val_mid": 21,
+      "val_base": 21, "currency": null,
+      "basis": null, "bonus_months": null, "stat": "official", "sample_n": null,
+      "spec_area_sqm": null,
+      "definition_note": "所得税法(586/1992)現行法",
+      "as_of": "2025-01-01", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    },
+    {
+      "id": 111, "city_id": "prague", "metric_id": "si_employee", "survey_id": "jetro_cost_2025",
+      "category": "social", "unit": "pct", "is_rate": true, "direction": "lower_better",
+      "val_low": 11.6, "val_high": 11.6, "val_mid": 11.6,
+      "val_base": 11.6, "currency": null,
+      "basis": null, "bonus_months": null, "stat": "official", "sample_n": null,
+      "spec_area_sqm": null,
+      "definition_note": "健康保険4.5%+社会保障7.1%。雇用者負担は33.8%",
+      "as_of": "2025-01-01", "source_id": "jetro_cost", "license": "restricted", "max_figures_per_article": 8
+    }
+  ],
+  "comparisons": [
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "tax_vat",
+      "val_base": 21, "ref_val_base": 10, "index_vs_ref": 210.0,
+      "direction": "lower_better",
+      "flag_basis_mismatch": false, "flag_stat_mismatch": false,
+      "flag_source_mismatch": false, "flag_period_gap": false, "flag_spec_mismatch": false,
+      "definition_note": "軽減税率12%あり",
+      "ref_definition_note": "消費税。軽減税率8%あり"
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "tax_income_max",
+      "val_base": 23, "ref_val_base": 45.95, "index_vs_ref": 50.1,
+      "direction": "lower_better",
+      "flag_basis_mismatch": false, "flag_stat_mismatch": false,
+      "flag_source_mismatch": false, "flag_period_gap": false, "flag_spec_mismatch": false,
+      "definition_note": "所得税法(586/1992)現行法",
+      "ref_definition_note": "復興特別所得税含む。住民税別"
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "tax_corp",
+      "val_base": 21, "ref_val_base": 23.2, "index_vs_ref": 90.5,
+      "direction": "lower_better",
+      "flag_basis_mismatch": false, "flag_stat_mismatch": false,
+      "flag_source_mismatch": false, "flag_period_gap": false, "flag_spec_mismatch": false,
+      "definition_note": "所得税法(586/1992)現行法",
+      "ref_definition_note": "普通法人(資本金1億円超)"
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "petrol",
+      "val_base": 1.634, "ref_val_base": 1.143, "index_vs_ref": 143.0,
+      "direction": "lower_better",
+      "flag_basis_mismatch": false, "flag_stat_mismatch": false,
+      "flag_source_mismatch": false, "flag_period_gap": false, "flag_spec_mismatch": false,
+      "definition_note": "フロレンツ(ガソリンスタンド)",
+      "ref_definition_note": "資源エネルギー庁 石油製品小売市況調査"
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "diesel",
+      "val_base": 1.587, "ref_val_base": 1.010, "index_vs_ref": 157.2,
+      "direction": "lower_better",
+      "flag_basis_mismatch": false, "flag_stat_mismatch": false,
+      "flag_source_mismatch": false, "flag_period_gap": false, "flag_spec_mismatch": false,
+      "definition_note": "同上",
+      "ref_definition_note": "同上"
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "rent_expat",
+      "val_base": 2449.8, "ref_val_base": 1189.0, "index_vs_ref": 206.1,
+      "direction": "lower_better",
+      "flag_basis_mismatch": false, "flag_stat_mismatch": false,
+      "flag_source_mismatch": false, "flag_period_gap": false, "flag_spec_mismatch": true,
+      "definition_note": "Sreality掲載。プラハ6区(日本人学校近く)、107-175m2、駐車場・家具付。VAT・光熱費・共益費別。面積は中央値141m2で登録",
+      "ref_definition_note": "不動産仲介会社。千種区今池、JR千種駅徒歩2分、2LDK 55.32m2"
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "wage_manager",
+      "val_base": 4720.1, "ref_val_base": 3200.0, "index_vs_ref": 147.5,
+      "direction": "higher_better",
+      "flag_basis_mismatch": true, "flag_stat_mismatch": true,
+      "flag_source_mismatch": false, "flag_period_gap": false, "flag_spec_mismatch": false,
+      "definition_note": "チェコ日本商工会「2025年現地従業員給与アンケート」。一般管理職の中央値。年額を月額換算、基本給+賞与含む",
+      "ref_definition_note": "愛知県人事委員会 令和6年報告。技術課長(平均49.2歳)。基本給、時間外手当除く。賞与別途約4.62カ月"
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "wage_worker",
+      "val_base": 1568.0, "ref_val_base": 1882.0, "index_vs_ref": 83.3,
+      "direction": "higher_better",
+      "flag_basis_mismatch": true, "flag_stat_mismatch": true,
+      "flag_source_mismatch": false, "flag_period_gap": false, "flag_spec_mismatch": false,
+      "definition_note": "チェコ日本商工会「2025年現地従業員給与アンケート」。工場労働者の中央値。年額を月額換算、基本給+賞与含む",
+      "ref_definition_note": "愛知県人事委員会 令和6年報告。企業規模100-500人。基本給、時間外手当除く。賞与別途約4.62カ月"
+    }
+  ],
+  "findings": [
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "tax_vat",
+      "name_ja": "付加価値税 標準税率", "index_vs_ref": 210.0,
+      "kind": "much_higher", "deviation": 110.0, "needs_caveat": false
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "rent_expat",
+      "name_ja": "駐在員用住宅借上料 月額", "index_vs_ref": 206.1,
+      "kind": "much_higher", "deviation": 106.1, "needs_caveat": true
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "diesel",
+      "name_ja": "軽油", "index_vs_ref": 157.2,
+      "kind": "much_higher", "deviation": 57.2, "needs_caveat": false
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "petrol",
+      "name_ja": "レギュラーガソリン", "index_vs_ref": 143.0,
+      "kind": "much_higher", "deviation": 43.0, "needs_caveat": false
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "wage_manager",
+      "name_ja": "中間管理職（課長クラス）月額", "index_vs_ref": 147.5,
+      "kind": "much_higher", "deviation": 47.5, "needs_caveat": true
+    },
+    {
+      "city_id": "prague", "ref_city_id": "nagoya", "metric_id": "tax_income_max",
+      "name_ja": "個人所得税 最高税率", "index_vs_ref": 50.1,
+      "kind": "much_lower", "deviation": 49.9, "needs_caveat": false
+    }
+  ],
+  "wageAnnual": [
+    {
+      "city_id": "prague", "metric_id": "wage_worker", "survey_id": "jetro_cost_2025",
+      "monthly_base": 1568.0, "annual_base": 18816.0,
+      "basis": "incl_bonus", "bonus_months": null, "stat": "median", "sample_n": 11152
+    },
+    {
+      "city_id": "prague", "metric_id": "wage_manager", "survey_id": "jetro_cost_2025",
+      "monthly_base": 4720.1, "annual_base": 56641.2,
+      "basis": "incl_bonus", "bonus_months": null, "stat": "median", "sample_n": 316
+    },
+    {
+      "city_id": "nagoya", "metric_id": "wage_worker", "survey_id": "jetro_cost_2025",
+      "monthly_base": 1882.0, "annual_base": 31264.0,
+      "basis": "base_only", "bonus_months": 4.62, "stat": "official", "sample_n": null
+    },
+    {
+      "city_id": "nagoya", "metric_id": "wage_manager", "survey_id": "jetro_cost_2025",
+      "monthly_base": 3200.0, "annual_base": 53184.0,
+      "basis": "base_only", "bonus_months": 4.62, "stat": "official", "sample_n": null
+    }
+  ],
+  "sources": [
+    {
+      "id": "jetro_cost", "name_ja": "投資関連コスト比較調査", "publisher_ja": "ジェトロ",
+      "license": "restricted",
+      "attribution_ja": "出典：ジェトロ「2025年度 投資関連コスト比較調査」",
+      "max_figures_per_article": 8
+    },
+    {
+      "id": "mofa_resid", "name_ja": "海外在留邦人数調査統計", "publisher_ja": "外務省",
+      "license": "attribution",
+      "attribution_ja": "出典：外務省「海外在留邦人数調査統計」",
+      "max_figures_per_article": null
+    },
+    {
+      "id": "eurostat", "name_ja": "Eurostat 各種統計", "publisher_ja": "欧州委員会統計局",
+      "license": "attribution",
+      "attribution_ja": "Source: Eurostat",
+      "max_figures_per_article": null
+    }
+  ]
+}

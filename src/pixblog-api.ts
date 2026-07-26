@@ -31,7 +31,7 @@ interface PostsResponse {
 interface CreatePostParams {
   title: string;
   body: string;
-  content_format: "markdown";
+  content_format: "markdown" | "html";
   tags: string[];
   status: "draft" | "published";
   memo?: string;

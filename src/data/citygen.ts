@@ -16,7 +16,7 @@ import { CLAUDE_MODEL } from "../config.js";
 import { createPost } from "../pixblog-api.js";
 import { log } from "../logger.js";
 import { query as dbQuery } from "./db.js";
-import { locationMapSvg, distanceKm } from "./geomap.js";
+import { locationMapSvg, distanceKm, type MapResult } from "./geomap.js";
 import { searchCityPhotos, type PhotoCandidate } from "./photo.js";
 import type {
   MockData,
@@ -799,6 +799,7 @@ export async function generateCityArticle(
       label: METRIC_NAME[c.metric_id] ?? c.metric_id,
       index: c.index_vs_ref,
       highlight: c.flag_basis_mismatch || c.flag_spec_mismatch || c.flag_stat_mismatch,
+      direction: c.direction,
     }));
 
   const compBars = comparisonBarsSvg(barRows, refCity.name_ja);
@@ -807,8 +808,9 @@ export async function generateCityArticle(
   let mapSvgStr: string | undefined;
   let distance: number | undefined;
   if (city.lat != null && city.lon != null) {
-    mapSvgStr = locationMapSvg(city.lat, city.lon, city.name_ja);
-    log("INFO", `[citygen] Location map generated for ${city.name_ja}`);
+    const mapResult: MapResult = locationMapSvg(city.lat, city.lon, city.name_ja, city.country_iso2);
+    mapSvgStr = mapResult.svg;
+    log("INFO", `[citygen] Location map: marker at ${mapResult.markerCenterPct.xPct.toFixed(1)}%/${mapResult.markerCenterPct.yPct.toFixed(1)}%, countries=[${mapResult.countriesInView.join(",")}]`);
     if (refCity.lat != null && refCity.lon != null) {
       distance = distanceKm(refCity.lat, refCity.lon, city.lat, city.lon);
       log("INFO", `[citygen] Distance: ${refCity.name_ja} → ${city.name_ja} = ${distance}km`);

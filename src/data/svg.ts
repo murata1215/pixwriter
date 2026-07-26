@@ -57,45 +57,79 @@ function genericMotifs(color: string): string {
 
 export interface BarRow {
   label: string;
-  index: number; // index_vs_ref (100 = same as ref)
-  highlight: boolean; // needs_caveat or significant deviation
+  index: number;             // index_vs_ref (100 = same as ref)
+  highlight: boolean;        // needs_caveat or significant deviation
+  direction: string | null;  // "lower_better" | "higher_better" | "neutral"
 }
 
-export function comparisonBarsSvg(rows: BarRow[], refCityName: string): string {
-  const baseX = 210; // position of the 100 baseline
-  const rowH = 46;
-  const barH = 28;
-  const yStart = 58;
-  const chartH = yStart + rows.length * rowH + 50;
-  const scale = 1.5; // pixels per index point
-
+/**
+ * Determine bar color based on direction semantics:
+ * - lower_better (tax, rent, fuel): above 100 = RED (worse), below 100 = GREEN (better)
+ * - higher_better (wage):           above 100 = GREEN (better), below 100 = RED (worse)
+ * - neutral / null:                 GREY
+ */
+function barColor(diff: number, direction: string | null): string {
   const GREEN = "#436F4D";
   const RED = "#CD2A3E";
   const NEUTRAL = "#9AA39E";
+
+  if (Math.abs(diff) <= 3) return NEUTRAL;
+
+  switch (direction) {
+    case "lower_better":
+      return diff > 0 ? RED : GREEN;
+    case "higher_better":
+      return diff > 0 ? GREEN : RED;
+    default:
+      return NEUTRAL;
+  }
+}
+
+export function comparisonBarsSvg(rows: BarRow[], refCityName: string): string {
+  const baseX = 280;           // increased from 210 for wider left margin
+  const rowH = 46;
+  const barH = 28;
+  const yStart = 58;
+  const maxBarW = 350;         // cap bar width to prevent overflow
+  const scale = 1.5;           // pixels per index point
+  const chartH = yStart + rows.length * rowH + 70;
 
   const bars = rows.map((r, i) => {
     const y = yStart + i * rowH;
     const barY = y - 14;
     const diff = r.index - 100;
-    const w = Math.abs(diff) * scale;
-    const color = diff < -3 ? GREEN : diff > 3 ? RED : NEUTRAL;
+    const rawW = Math.abs(diff) * scale;
+    const w = Math.min(rawW, maxBarW);
+    const color = barColor(diff, r.direction);
 
-    const barX = diff >= 0 ? baseX : baseX - w;
-    const labelX = diff >= 0 ? baseX + w + 8 : baseX - w - 8;
-    const anchor = diff >= 0 ? "start" : "end";
+    let barX: number, numX: number, numAnchor: string;
+    if (diff >= 0) {
+      barX = baseX;
+      numX = baseX + w + 8;
+      numAnchor = "start";
+    } else {
+      barX = baseX - w;
+      numX = baseX + 8;       // number goes RIGHT of baseline (not left, avoiding label overlap)
+      numAnchor = "start";
+    }
 
-    return `<text x="40" y="${y}" font-family="${GOTHIC}" font-size="13.5" fill="#16181C">${esc(r.label)}</text>
+    return `<text x="16" y="${y}" font-family="${GOTHIC}" font-size="13.5" fill="#16181C">${esc(r.label)}</text>
 <rect x="${barX}" y="${barY}" width="${Math.max(w, 4)}" height="${barH}" fill="${color}"/>
-<text x="${labelX}" y="${y}" text-anchor="${anchor}" font-family="${MONO}" font-size="13" font-weight="500" fill="${color}">${r.index}</text>`;
+<text x="${numX}" y="${y}" text-anchor="${numAnchor}" font-family="${MONO}" font-size="13" font-weight="500" fill="${color}">${r.index}</text>`;
   }).join("\n");
 
-  const noteY = yStart + rows.length * rowH + 10;
+  const noteY = yStart + rows.length * rowH + 12;
+  const legendY = noteY + 18;
 
-  return `<svg viewBox="0 0 680 ${chartH}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${refCityName}を100としたときの比較">
+  return `<svg viewBox="0 0 680 ${chartH}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(refCityName)}を100としたときの比較">
 <line x1="${baseX}" y1="${yStart - 20}" x2="${baseX}" y2="${yStart + rows.length * rowH - 10}" stroke="#16181C" stroke-width="1.5"/>
 <text x="${baseX}" y="${yStart - 28}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="#6B7079">${esc(refCityName)}=100</text>
 ${bars}
-<text x="40" y="${noteY}" font-family="${MONO}" font-size="11" fill="#6B7079">比率は現地通貨ベースで算出（率はそのまま比較）</text>
+<text x="16" y="${noteY}" font-family="${MONO}" font-size="11" fill="#6B7079">比率は現地通貨ベースで算出（率はそのまま比較）</text>
+<rect x="16" y="${legendY - 9}" width="10" height="10" rx="1" fill="#CD2A3E"/>
+<text x="30" y="${legendY}" font-family="${MONO}" font-size="10.5" fill="#6B7079">移住者に不利</text>
+<rect x="120" y="${legendY - 9}" width="10" height="10" rx="1" fill="#436F4D"/>
+<text x="134" y="${legendY}" font-family="${MONO}" font-size="10.5" fill="#6B7079">有利（${esc(refCityName)}比）</text>
 </svg>`;
 }
 

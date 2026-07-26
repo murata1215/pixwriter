@@ -15,6 +15,8 @@ export interface CityRow {
   flag_colors: string[];
   landscape_ja: string | null;
   motif_en: string | null;
+  lat: number | null;
+  lon: number | null;
 }
 
 export interface ValueRow {
@@ -197,7 +199,7 @@ function castSourceRow(r: Record<string, unknown>): SourceRow {
 export async function getCity(cityId: string, mock?: MockData): Promise<CityRow> {
   if (mock) return mock.city;
   const rows = await query<CityRow>(
-    "SELECT id, name_ja, country_ja, country_iso2, currency, flag_colors, landscape_ja, motif_en FROM city WHERE id = $1",
+    "SELECT id, name_ja, country_ja, country_iso2, currency, flag_colors, landscape_ja, motif_en, lat, lon FROM city WHERE id = $1",
     [cityId]
   );
   if (rows.length === 0) throw new Error(`City not found: ${cityId}`);

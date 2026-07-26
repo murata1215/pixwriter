@@ -16,6 +16,8 @@ import { CLAUDE_MODEL } from "../config.js";
 import { createPost } from "../pixblog-api.js";
 import { log } from "../logger.js";
 import { query as dbQuery } from "./db.js";
+import { locationMapSvg, distanceKm } from "./geomap.js";
+import { searchCityPhotos, type PhotoCandidate } from "./photo.js";
 import type {
   MockData,
   CityRow,
@@ -434,7 +436,12 @@ function assembleHtml(
   methodHtml: string,
   city: CityRow,
   refCity: CityRow,
-  hasLanguage: boolean
+  hasLanguage: boolean,
+  opts: {
+    locationMapHtml?: string;
+    distanceKm?: number;
+    photo?: PhotoCandidate;
+  } = {}
 ): string {
   const today = new Date().toISOString().slice(0, 10);
 
@@ -466,6 +473,27 @@ ${llmOutput.languageParagraphs.map((p) => `<p>${p}</p>`).join("\n")}
 
   const css = getReferenceCss();
 
+  // Location map (if coordinates available)
+  const locationSection = opts.locationMapHtml
+    ? `<figure>
+${opts.locationMapHtml}
+<figcaption><b>FIG.0</b>　${city.name_ja}の位置</figcaption>
+</figure>`
+    : "";
+
+  // Distance stat card
+  const distanceStat = opts.distanceKm
+    ? `<div class="stat"><dt>${refCity.name_ja}からの距離</dt><dd>${opts.distanceKm.toLocaleString()}<small>km</small></dd></div>`
+    : "";
+
+  // Photo (if available)
+  const photoSection = opts.photo
+    ? `<figure>
+<img src="${opts.photo.pixblogUrl}" alt="${city.name_ja}の街並み" style="width:100%;border-radius:2px">
+<figcaption>${opts.photo.figcaption}</figcaption>
+</figure>`
+    : "";
+
   return `<div class="iju-post">
 ${css}
 <div class="hero">
@@ -474,6 +502,8 @@ ${heroSvgStr}
 
 <div class="wrap">
 
+${locationSection}
+
 <div class="eyebrow"><b>都市データ</b><span>${city.country_ja} / ${city.name_ja}</span></div>
 
 ${leadHtml}
@@ -481,6 +511,10 @@ ${leadHtml}
 <div class="byline">
   <span>公的統計をもとに構成</span><span>体験談を含みません</span><span>${today}</span>
 </div>
+
+<dl class="stats">
+${distanceStat}
+</dl>
 
 <figure>
 ${compBarsSvgStr}
@@ -492,6 +526,8 @@ ${compTableHtml}
 ${sectionsHtml}
 
 ${languageHtml}
+
+${photoSection}
 
 <h2>誰に向いて、誰に向かないか</h2>
 <p class="h2note">ASSESSMENT — 上記データからの解釈</p>
@@ -767,6 +803,31 @@ export async function generateCityArticle(
 
   const compBars = comparisonBarsSvg(barRows, refCity.name_ja);
 
+  // 5b. Location map and distance
+  let mapSvgStr: string | undefined;
+  let distance: number | undefined;
+  if (city.lat != null && city.lon != null) {
+    mapSvgStr = locationMapSvg(city.lat, city.lon, city.name_ja);
+    log("INFO", `[citygen] Location map generated for ${city.name_ja}`);
+    if (refCity.lat != null && refCity.lon != null) {
+      distance = distanceKm(refCity.lat, refCity.lon, city.lat, city.lon);
+      log("INFO", `[citygen] Distance: ${refCity.name_ja} → ${city.name_ja} = ${distance}km`);
+    }
+  } else {
+    log("INFO", `[citygen] No coordinates for ${city.name_ja}, skipping location map`);
+  }
+
+  // 5c. City photos from Wikimedia Commons
+  let photoCandidates: PhotoCandidate[] = [];
+  const cityEnName = city.id.charAt(0).toUpperCase() + city.id.slice(1); // "prague" → "Prague"
+  try {
+    const { PIXBLOG_BASE_URL } = await import("../config.js");
+    photoCandidates = await searchCityPhotos(cityEnName, city.name_ja, PIXBLOG_BASE_URL);
+    log("INFO", `[citygen] Photos: ${photoCandidates.length} candidates uploaded`);
+  } catch (e) {
+    log("WARN", `[citygen] Photo search failed: ${e}`);
+  }
+
   // 6. Build HTML components
   const compTable = buildComparisonTable(comparisons, city.name_ja, refCity.name_ja);
 
@@ -780,7 +841,14 @@ export async function generateCityArticle(
   const methodSection = buildMethodSection(usedSourceIds, sources, !!language);
 
   // 7. Assemble HTML
-  const html = assembleHtml(llmOutput, hero, compBars, compTable, methodSection, city, refCity, !!language);
+  const html = assembleHtml(
+    llmOutput, hero, compBars, compTable, methodSection, city, refCity, !!language,
+    {
+      locationMapHtml: mapSvgStr,
+      distanceKm: distance,
+      photo: photoCandidates[0],
+    }
+  );
 
   // 8. Count JETRO figures used
   const allLlmText = [
@@ -816,6 +884,10 @@ export async function generateCityArticle(
     excerpt: llmOutput.excerpt,
     tags: [city.name_ja, city.country_ja, "都市データ", "移住", "生活コスト"],
     category: "都市データ",
+    distance_km: distance ?? null,
+    photo_candidates: photoCandidates.length > 0
+      ? photoCandidates.map((p) => ({ url: p.pixblogUrl, artist: p.artist, license: p.license, commons_page: p.commonsPage }))
+      : "none",
     jetro_figures_used: jetroCount,
     findings: findings.map((f) => ({
       metric: f.name_ja,

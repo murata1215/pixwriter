@@ -7,7 +7,9 @@
     "currency": "CZK",
     "flag_colors": ["#11457E", "#F4F1EC", "#D7141A"],
     "landscape_ja": "ヴルタヴァ川の谷",
-    "motif_en": "tall gothic spires"
+    "motif_en": "tall gothic spires",
+    "lat": 50.075,
+    "lon": 14.438
   },
   "refCity": {
     "id": "nagoya",
@@ -17,7 +19,9 @@
     "currency": "JPY",
     "flag_colors": ["#BC002D", "#F4F1EC", "#4A5D4E"],
     "landscape_ja": "濃尾平野",
-    "motif_en": "a symmetrical volcanic cone"
+    "motif_en": "a symmetrical volcanic cone",
+    "lat": 35.181,
+    "lon": 136.906
   },
   "values": [
     {

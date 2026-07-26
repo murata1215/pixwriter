@@ -196,14 +196,22 @@ function castSourceRow(r: Record<string, unknown>): SourceRow {
 
 // ---- Query functions ----
 
+function castCityRow(r: Record<string, unknown>): CityRow {
+  return {
+    ...r,
+    lat: numOrNull(r.lat),
+    lon: numOrNull(r.lon),
+  } as CityRow;
+}
+
 export async function getCity(cityId: string, mock?: MockData): Promise<CityRow> {
   if (mock) return mock.city;
-  const rows = await query<CityRow>(
+  const rows = await query<Record<string, unknown>>(
     "SELECT id, name_ja, country_ja, country_iso2, currency, flag_colors, landscape_ja, motif_en, lat, lon FROM city WHERE id = $1",
     [cityId]
   );
   if (rows.length === 0) throw new Error(`City not found: ${cityId}`);
-  return rows[0];
+  return castCityRow(rows[0]);
 }
 
 export async function getRefCity(refCityId: string, mock?: MockData): Promise<CityRow> {

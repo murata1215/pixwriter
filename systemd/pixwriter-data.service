@@ -1,0 +1,15 @@
+[Unit]
+Description=PixWriter data-driven article generator (oneshot)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pixwriter
+EnvironmentFile=/home/pixwriter/.pixblog-agent.env
+Environment="PATH=/home/pixwriter/.devrelay/node/bin:/usr/bin:/bin"
+ExecStart=/home/pixwriter/.devrelay/node/bin/node /home/pixwriter/.devrelay/node/bin/npx tsx /home/pixwriter/agent/src/data/run.ts
+WorkingDirectory=/home/pixwriter/agent
+TimeoutStartSec=600
+StandardOutput=journal
+StandardError=journal

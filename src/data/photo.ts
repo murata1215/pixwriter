@@ -131,9 +131,18 @@ export async function searchCityPhotos(
     artist: string;
   }[] = [];
 
+  // Allowed image formats (reject SVG, GIF, TIFF — they're often vector illustrations)
+  const ALLOWED_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
+
   for (const page of pageList) {
     const ii = page.imageinfo?.[0];
     if (!ii?.extmetadata) continue;
+
+    // Format filter: only raster photos
+    if (!ALLOWED_EXTENSIONS.test(page.title)) {
+      log("INFO", `[photo] Rejected (format): ${page.title}`);
+      continue;
+    }
 
     const licShort = ii.extmetadata.LicenseShortName?.value ?? "";
     if (!isLicenseAllowed(licShort)) {

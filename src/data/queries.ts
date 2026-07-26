@@ -129,6 +129,69 @@ export interface MockData {
   language?: LanguageData;
 }
 
+// ---- Helpers: PostgreSQL numeric → JavaScript number ----
+// node-postgres returns numeric columns as strings. These helpers cast them.
+
+function num(v: unknown): number {
+  if (v == null) return 0;
+  return Number(v);
+}
+
+function numOrNull(v: unknown): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+function castValueRow(r: Record<string, unknown>): ValueRow {
+  return {
+    ...r,
+    id: num(r.id),
+    val_low: num(r.val_low),
+    val_high: num(r.val_high),
+    val_mid: num(r.val_mid),
+    val_base: numOrNull(r.val_base),
+    bonus_months: numOrNull(r.bonus_months),
+    sample_n: numOrNull(r.sample_n),
+    spec_area_sqm: numOrNull(r.spec_area_sqm),
+    max_figures_per_article: numOrNull(r.max_figures_per_article),
+  } as ValueRow;
+}
+
+function castComparisonRow(r: Record<string, unknown>): ComparisonRow {
+  return {
+    ...r,
+    val_base: num(r.val_base),
+    ref_val_base: num(r.ref_val_base),
+    index_vs_ref: num(r.index_vs_ref),
+  } as ComparisonRow;
+}
+
+function castFindingRow(r: Record<string, unknown>): FindingRow {
+  return {
+    ...r,
+    index_vs_ref: num(r.index_vs_ref),
+    deviation: num(r.deviation),
+  } as FindingRow;
+}
+
+function castWageAnnualRow(r: Record<string, unknown>): WageAnnualRow {
+  return {
+    ...r,
+    monthly_base: num(r.monthly_base),
+    annual_base: num(r.annual_base),
+    bonus_months: numOrNull(r.bonus_months),
+    sample_n: numOrNull(r.sample_n),
+  } as WageAnnualRow;
+}
+
+function castSourceRow(r: Record<string, unknown>): SourceRow {
+  return {
+    ...r,
+    max_figures_per_article: numOrNull(r.max_figures_per_article),
+  } as SourceRow;
+}
+
 // ---- Query functions ----
 
 export async function getCity(cityId: string, mock?: MockData): Promise<CityRow> {
@@ -148,39 +211,44 @@ export async function getRefCity(refCityId: string, mock?: MockData): Promise<Ci
 
 export async function getValues(cityId: string, mock?: MockData): Promise<ValueRow[]> {
   if (mock) return mock.values;
-  return query<ValueRow>(
+  const rows = await query<Record<string, unknown>>(
     "SELECT * FROM v_value WHERE city_id = $1",
     [cityId]
   );
+  return rows.map(castValueRow);
 }
 
 export async function getComparisons(cityId: string, refCityId: string, mock?: MockData): Promise<ComparisonRow[]> {
   if (mock) return mock.comparisons;
-  return query<ComparisonRow>(
+  const rows = await query<Record<string, unknown>>(
     "SELECT * FROM v_comparison WHERE city_id = $1 AND ref_city_id = $2",
     [cityId, refCityId]
   );
+  return rows.map(castComparisonRow);
 }
 
 export async function getFindings(cityId: string, mock?: MockData): Promise<FindingRow[]> {
   if (mock) return mock.findings;
-  return query<FindingRow>(
+  const rows = await query<Record<string, unknown>>(
     "SELECT * FROM v_finding_candidate WHERE city_id = $1 ORDER BY deviation DESC",
     [cityId]
   );
+  return rows.map(castFindingRow);
 }
 
 export async function getWageAnnual(cityId: string, refCityId: string, mock?: MockData): Promise<WageAnnualRow[]> {
   if (mock) return mock.wageAnnual;
-  return query<WageAnnualRow>(
+  const rows = await query<Record<string, unknown>>(
     "SELECT * FROM v_wage_annual WHERE city_id IN ($1, $2)",
     [cityId, refCityId]
   );
+  return rows.map(castWageAnnualRow);
 }
 
 export async function getSources(mock?: MockData): Promise<SourceRow[]> {
   if (mock) return mock.sources;
-  return query<SourceRow>(
+  const rows = await query<Record<string, unknown>>(
     "SELECT id, name_ja, publisher_ja, license, attribution_ja, max_figures_per_article FROM source"
   );
+  return rows.map(castSourceRow);
 }

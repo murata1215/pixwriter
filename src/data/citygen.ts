@@ -570,14 +570,32 @@ async function postDraft(
   slug: string
 ): Promise<number> {
   log("INFO", `[citygen] Posting draft to PixBlog (slug=${slug})`);
-  const post = await createPost({
-    title: meta.title,
-    body: html,
-    content_format: "html",
-    tags: meta.tags,
-    status: "draft",
-    excerpt: meta.excerpt,
+
+  // PixBlog API: HTML uses `content` field (not `body`, no `content_format`).
+  // `body` + `content_format: "markdown"` is for markdown only.
+  // Since createPost's type uses `body`, we call the API directly.
+  const { PIXBLOG_BASE_URL, PIXBLOG_API_TOKEN } = await import("../config.js");
+  const res = await fetch(`${PIXBLOG_BASE_URL}/api/v1/posts`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${PIXBLOG_API_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: meta.title,
+      content: html,
+      tags: meta.tags,
+      status: "draft",
+      excerpt: meta.excerpt,
+    }),
   });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`PixBlog API error: ${res.status} ${res.statusText} - ${text}`);
+  }
+
+  const post = (await res.json()) as { id: number; url: string };
   log("INFO", `[citygen] Draft posted: post_id=${post.id}, url=${post.url}`);
   return post.id;
 }

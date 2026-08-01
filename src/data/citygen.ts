@@ -27,6 +27,7 @@ import type {
   ValueRow,
   SourceRow,
   LanguageData,
+  FxRate,
 } from "./queries.js";
 import {
   getCity,
@@ -36,6 +37,7 @@ import {
   getFindings,
   getWageAnnual,
   getSources,
+  getFxRates,
 } from "./queries.js";
 import { heroSvg, comparisonBarsSvg, type BarRow } from "./svg.js";
 
@@ -64,6 +66,35 @@ interface LlmInput {
   wageAnnual: WageAnnualRow[];
   values: ValueRow[];
   language?: LanguageData;
+  jpyPerUsd: number;           // 147.23
+  cityPerUsd: number;          // e.g. 1.703 for BGN
+  jpyPerLocal: number;         // 147.23 / 1.703 = 86.45 for BGN
+  cityCurrency: string;        // e.g. "BGN"
+}
+
+// ---- Currency formatting helpers ----
+
+/** Format a JPY amount: ≥10000 → "約X.X万円", else "約X円" */
+function formatJpy(jpy: number): string {
+  if (jpy >= 10000) {
+    return `約${(jpy / 10000).toFixed(1)}万円`;
+  }
+  return `約${Math.round(jpy)}円`;
+}
+
+/** Format a value with JPY + local currency: "約25.4万円（599,738 Ft）" */
+function formatJpyWithLocal(valLocal: number, jpyPerLocal: number, currencySymbol: string): string {
+  const jpy = valLocal * jpyPerLocal;
+  const localStr = valLocal >= 100
+    ? Math.round(valLocal).toLocaleString("en-US")
+    : valLocal.toFixed(2);
+  return `${formatJpy(jpy)}（${localStr} ${currencySymbol}）`;
+}
+
+/** Format USD-denominated values (like electricity) to JPY */
+function formatUsdToJpy(valUsd: number, jpyPerUsd: number, unit: string): string {
+  const jpy = valUsd * jpyPerUsd;
+  return `約${Math.round(jpy)}円/${unit}`;
 }
 
 interface LlmOutput {
@@ -81,13 +112,26 @@ interface LlmOutput {
 }
 
 function buildPrompt(input: LlmInput): { system: string; user: string } {
-  const { city, refCity, comparisons, findings, wageAnnual, language } = input;
+  const { city, refCity, comparisons, findings, wageAnnual, language, jpyPerUsd, jpyPerLocal, cityCurrency } = input;
 
-  // Build comparison table in reader-facing format (no internal vocabulary)
+  // Build comparison table — amounts in JPY, rates as-is
   const compTable = comparisons
     .sort((a, b) => Math.abs(b.index_vs_ref - 100) - Math.abs(a.index_vs_ref - 100))
     .map((c) => {
       const ratio = (c.index_vs_ref / 100).toFixed(2);
+      const metric = METRIC_NAME[c.metric_id] ?? c.metric_id;
+
+      // Format values: rates stay as-is, amounts get JPY conversion
+      const isRate = ["tax_vat", "tax_income_max", "tax_corp", "si_employee", "si_employer"].includes(c.metric_id);
+      let valStr: string;
+      if (isRate) {
+        valStr = `${city.name_ja}=${c.val_base}%, ${refCity.name_ja}=${c.ref_val_base}%`;
+      } else {
+        const cityJpy = formatJpy(c.val_base * jpyPerUsd);
+        const refJpy = formatJpy(c.ref_val_base * jpyPerUsd);
+        valStr = `${city.name_ja}=${cityJpy}, ${refCity.name_ja}=${refJpy}`;
+      }
+
       const caveats: string[] = [];
       if (c.flag_basis_mismatch || c.flag_stat_mismatch) {
         caveats.push(`※定義が異なる: ${city.name_ja}側「${c.definition_note ?? ""}」/ ${refCity.name_ja}側「${c.ref_definition_note ?? ""}」`);
@@ -96,18 +140,20 @@ function buildPrompt(input: LlmInput): { system: string; user: string } {
         caveats.push(`※物件の条件（面積等）が異なるため、そのまま比較できない`);
       }
       const caveatStr = caveats.length > 0 ? `\n  ${caveats.join("\n  ")}` : "";
-      return `- ${METRIC_NAME[c.metric_id] ?? c.metric_id}: ${refCity.name_ja}の${ratio}倍（${city.name_ja}=${c.val_base}, ${refCity.name_ja}=${c.ref_val_base}）${caveatStr}`;
+      return `- ${metric}: ${refCity.name_ja}の${ratio}倍（${valStr}）${caveatStr}`;
     })
     .join("\n");
 
-  // Build wage annual text (reader-facing)
+  // Build wage annual text — in JPY
   const wageText = wageAnnual
     .map((w) => {
       const cityName = w.city_id === city.id ? city.name_ja : refCity.name_ja;
+      const monthlyJpy = formatJpy(w.monthly_base * jpyPerUsd);
+      const annualJpy = formatJpy(w.annual_base * jpyPerUsd);
       const bonusInfo = w.bonus_months
         ? `（基本給のみ。賞与${w.bonus_months}ヶ月分を加えた年収で比較）`
         : "（賞与込みの年額）";
-      return `- ${cityName} / ${METRIC_NAME[w.metric_id] ?? w.metric_id}: 月額USD${w.monthly_base.toFixed(0)}, 年額USD${w.annual_base.toFixed(0)} ${bonusInfo}`;
+      return `- ${cityName} / ${METRIC_NAME[w.metric_id] ?? w.metric_id}: 月額${monthlyJpy}, 年額${annualJpy} ${bonusInfo}`;
     })
     .join("\n");
 
@@ -159,8 +205,11 @@ ${epiRows}
 8. 出力に以下を含めてはならない: index=、basis_mismatch、stat_mismatch、spec_mismatch、flag、v_comparison、deviation。
    比較の非対称性は自然な日本語で説明する。
 
+【データ欠損への沈黙】
+9. データが存在しない項目について、その不在に言及しない。「未登録」「データがない」「比較できない」等のデータセット自体への言及を禁止。無い項目は沈黙して飛ばす。
+
 【タイトルとリードの規則】
-9. タイトルは最も意外な数値2つを具体的な倍率・分数で示す形にする
+10. タイトルは最も意外な数値2つを具体的な倍率・分数で示す形にする
    （手本:「電気は3分の2、ガソリンは1.5倍——プラハの生活コストを名古屋と比べた」）。
    「◯◯プロファイル」「◯◯比較」「コスト比較」等の総称タイトルは禁止。
    リード第1文も具体的な数字から入る。
@@ -200,10 +249,10 @@ ${languageText}
 
 ## 補足
 - 比較はすべて同一調査（ジェトロ2025年度調査）内で行っている
-- 電気代は${refCity.name_ja}で未調査のため比較なし。${city.name_ja}の値は0.36 USD/kWh
-- 社会保険の本人負担率: ${city.name_ja}=11.6%
+- 金額はすべて日本円で表記している（1${cityCurrency}＝約${Math.round(jpyPerLocal)}円で換算）
 - 注記付きの比較は、本文中で条件の違いを自然な日本語で説明すること
-- 「企業」「法人」「進出」「投資」「駐在員」等の語彙は使わないこと`;
+- 「企業」「法人」「進出」「投資」「駐在員」等の語彙は使わないこと
+- データが存在しない項目には触れないこと（「未調査」「データがない」等と書かない）`;
 
   return { system, user };
 }
@@ -313,6 +362,27 @@ function buildAllowedNumbers(input: LlmInput): Set<string> {
     // Numbers from eurobarometer note/survey (e.g. "2.6万人")
     const ebNums = (lang.eurobarometer.survey + " " + lang.eurobarometer.note).match(/[\d,]+(?:\.\d+)?/g) ?? [];
     for (const nn of ebNums) addNum(parseFloat(nn.replace(/,/g, "")));
+  }
+
+  // JPY-converted values (for yen-denominated prompts)
+  if (input.jpyPerUsd) {
+    for (const c of input.comparisons) {
+      addNum(c.val_base * input.jpyPerUsd);
+      addNum(c.ref_val_base * input.jpyPerUsd);
+      // "万円" form: value / 10000
+      addNum(c.val_base * input.jpyPerUsd / 10000);
+      addNum(c.ref_val_base * input.jpyPerUsd / 10000);
+    }
+    for (const w of input.wageAnnual) {
+      addNum(w.monthly_base * input.jpyPerUsd);
+      addNum(w.annual_base * input.jpyPerUsd);
+      addNum(w.monthly_base * input.jpyPerUsd / 10000);
+      addNum(w.annual_base * input.jpyPerUsd / 10000);
+    }
+    // Cross rate
+    if (input.jpyPerLocal) {
+      addNum(input.jpyPerLocal);
+    }
   }
 
   // Common small numbers, years, months, days
@@ -441,6 +511,7 @@ function assembleHtml(
     locationMapHtml?: string;
     distanceKm?: number;
     photo?: PhotoCandidate;
+    currencyNoteHtml?: string;
   } = {}
 ): string {
   const today = new Date().toISOString().slice(0, 10);
@@ -511,6 +582,8 @@ ${leadHtml}
 <div class="byline">
   <span>公的統計をもとに構成</span><span>体験談を含みません</span><span>${today}</span>
 </div>
+
+${opts.currencyNoteHtml ?? ""}
 
 <dl class="stats">
 ${distanceStat}
@@ -717,14 +790,24 @@ export async function generateCityArticle(
   const findings = await getFindings(cityId, mock);
   const wageAnnual = await getWageAnnual(cityId, refCityId, mock);
   const sources = await getSources(mock);
+  const fxRates = await getFxRates("jetro_cost_2025", mock);
 
   // Load language data from src/data/lang/{cityId}.json (same for mock and real DB)
   const language = loadLanguageData(cityId);
 
+  // 1b. Compute FX rates for JPY conversion
+  const jpyRate = fxRates.find((r) => r.city_id === refCityId && r.currency === "JPY");
+  const cityLocalRate = fxRates.find((r) => r.city_id === cityId && r.currency !== "USD");
+  const jpyPerUsd = jpyRate ? jpyRate.per_base : 147.23; // fallback
+  const cityPerUsd = cityLocalRate ? cityLocalRate.per_base : 1;
+  const cityCurrency = cityLocalRate?.currency ?? city.currency;
+  const jpyPerLocal = jpyPerUsd / cityPerUsd;
+
+  log("INFO", `[citygen] FX: 1 ${cityCurrency} = ${jpyPerLocal.toFixed(2)} JPY (${jpyPerUsd} JPY/USD, ${cityPerUsd} ${cityCurrency}/USD)`);
   log("INFO", `[citygen] Data: ${comparisons.length} comparisons, ${findings.length} findings, ${wageAnnual.length} wage rows, language=${!!language}`);
 
   // 2. Build LLM input
-  const llmInput: LlmInput = { city, refCity, comparisons, findings, wageAnnual, values, language };
+  const llmInput: LlmInput = { city, refCity, comparisons, findings, wageAnnual, values, language, jpyPerUsd, cityPerUsd, jpyPerLocal, cityCurrency };
   const { system, user } = buildPrompt(llmInput);
   const allowedNumbers = buildAllowedNumbers(llmInput);
 
@@ -842,13 +925,21 @@ export async function generateCityArticle(
 
   const methodSection = buildMethodSection(usedSourceIds, sources, !!language);
 
-  // 7. Assemble HTML
+  // 7. Build currency note
+  const currencyNoteHtml = `<div class="note">
+<b>金額の表記について</b>
+<p>本記事の金額はすべて日本円で表記しています。ジェトロ調査の換算レート（1米ドル＝${jpyPerUsd}円、1米ドル＝${cityPerUsd}${cityCurrency}）から換算した、<strong>1${cityCurrency}＝約${Math.round(jpyPerLocal)}円</strong>を用いました。</p>
+<p>ただし為替は変動するため、円換算額は目安として読んでください。とくに<strong>現地で働いて現地で暮らす場合、為替レートは生活実感にほとんど関係しません</strong>。見るべきは「現地の賃金 ÷ 現地の物価」であって、円に直した金額ではない、という点は頭に置いておきたいところです。</p>
+</div>`;
+
+  // 8. Assemble HTML
   const html = assembleHtml(
     llmOutput, hero, compBars, compTable, methodSection, city, refCity, !!language,
     {
       locationMapHtml: mapSvgStr,
       distanceKm: distance,
       photo: photoCandidates[0],
+      currencyNoteHtml,
     }
   );
 

@@ -120,6 +120,12 @@ export interface LanguageData {
   };
 }
 
+export interface FxRate {
+  city_id: string;
+  currency: string;
+  per_base: number;
+}
+
 export interface MockData {
   city: CityRow;
   refCity: CityRow;
@@ -129,6 +135,7 @@ export interface MockData {
   wageAnnual: WageAnnualRow[];
   sources: SourceRow[];
   language?: LanguageData;
+  fxRates?: FxRate[];
 }
 
 // ---- Helpers: PostgreSQL numeric → JavaScript number ----
@@ -261,4 +268,17 @@ export async function getSources(mock?: MockData): Promise<SourceRow[]> {
     "SELECT id, name_ja, publisher_ja, license, attribution_ja, max_figures_per_article FROM source"
   );
   return rows.map(castSourceRow);
+}
+
+export async function getFxRates(surveyId: string, mock?: MockData): Promise<FxRate[]> {
+  if (mock?.fxRates) return mock.fxRates;
+  const rows = await query<Record<string, unknown>>(
+    "SELECT city_id, currency, per_base FROM survey_fx WHERE survey_id = $1",
+    [surveyId]
+  );
+  return rows.map((r) => ({
+    city_id: String(r.city_id),
+    currency: String(r.currency),
+    per_base: num(r.per_base),
+  }));
 }

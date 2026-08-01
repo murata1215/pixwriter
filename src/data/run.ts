@@ -107,23 +107,16 @@ async function main() {
     }
 
     // 3. Queue
-    const cityId = nextCity();
-    if (!cityId) {
+    const entry = nextCity();
+    if (!entry) {
       log("INFO", "[data-run] Queue is empty. Nothing to do.");
       appendJournal(`\n## ${new Date().toISOString()} — queue_empty\nキュー空。生成なし。\n`);
       return;
     }
 
+    const cityId = entry.city;
+    const slug = entry.slug;
     const refCityId = getRef();
-    // Derive slug from city table's country + city id
-    const slugMap: Record<string, string> = {
-      warsaw: "poland-warsaw",
-      bratislava: "slovakia-bratislava",
-      sofia: "bulgaria-sofia",
-      prague: "czechia-prague",
-      budapest: "hungary-budapest",
-    };
-    const slug = slugMap[cityId] ?? cityId;
 
     log("INFO", `[data-run] Processing: ${cityId} (ref=${refCityId}, slug=${slug})`);
 
@@ -156,8 +149,9 @@ estimated_cost=$${estimatedCost}, budget=$${(budgetBefore + estimatedCost).toFix
 
   } catch (err) {
     log("ERROR", `[data-run] Failed: ${err}`);
-    const cityId = nextCity(); // re-read to log which city failed
-    appendJournal(`\n## ${new Date().toISOString()} — ${cityId ?? "unknown"} — fail
+    let failCity = "unknown";
+    try { const e = nextCity(); if (e) failCity = e.city; } catch { /* ignore */ }
+    appendJournal(`\n## ${new Date().toISOString()} — ${failCity} — fail
 error: ${String(err).slice(0, 500)}
 `);
   } finally {
